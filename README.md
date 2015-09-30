@@ -27,7 +27,7 @@ format, say `packages.txt`:
     ZLIB GIT_REPOSITORY https://github.com/hunter-packages/zlib.git CMAKE_ARGS -DBUILD_SHARED_LIBS=1
     PNG GIT_REPOSITORY git://git.code.sf.net/p/libpng/code DEPENDS ZLIB
 
-The same in `cmake` format with some additional logic. File name can be
+The same in `cmake` format with some additional logic. Its filename can be
 `packages.cmake`:
 
     add_pkg(ZLIB GIT_REPOSITORY https://github.com/hunter-packages/zlib.git
