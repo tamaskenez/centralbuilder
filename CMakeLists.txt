@@ -53,14 +53,14 @@ list(LENGTH PKG_NAMES num_pkgs)
 message(STATUS "Loaded ${num_pkgs} packages.")
 
 set(hijack_modules_dir ${CMAKE_CURRENT_BINARY_DIR}/hijack_modules)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/FindPackageTryConfigOnly.cmake
-  ${hijack_modules_dir}/FindPackageTryConfigOnly.cmake
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/FindPackageTryConfigFirst.cmake
+  ${hijack_modules_dir}/FindPackageTryConfigFirst.cmake
   COPYONLY)
 foreach(pkg_name IN LISTS PKG_NAMES)
   if(EXISTS ${CMAKE_ROOT}/Modules/Find${pkg_name}.cmake)
     #write a hijack module
     file(WRITE "${hijack_modules_dir}/Find${pkg_name}.cmake"
-      "include(FindPackageTryConfigOnly)\nfind_package_try_config_only()\n")
+      "include(FindPackageTryConfigFirst)\nfind_package_try_config_first()\n")
   endif()
 endforeach()
 
