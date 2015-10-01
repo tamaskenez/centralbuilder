@@ -135,13 +135,13 @@ file(WRITE "${report_dir}/env.txt"
 # extract CMAKE_GENERATOR
 set(cmake_generator "")
 set(PKG_CMAKE_ARGS ";${PKG_CMAKE_ARGS};")
-set(gen_regex ";-G([^;]+);")
+set(gen_regex ";-G;?([^;]+);")
 if(PKG_CMAKE_ARGS MATCHES "${gen_regex}")
   set(cmake_generator_option CMAKE_GENERATOR "${CMAKE_MATCH_1}")
   string(REGEX REPLACE "${gen_regex}" ";" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
-  string(REGEX REPLACE "^;" "" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
-  string(REGEX REPLACE ";$" "" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
 endif()
+string(REGEX REPLACE "^;" "" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
+string(REGEX REPLACE ";$" "" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
 
 foreach(pkg_name IN LISTS PKG_NAMES)
   message(STATUS "Package: ${pkg_name}:")
