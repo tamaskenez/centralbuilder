@@ -40,5 +40,7 @@ function(add_pkg NAME)
   endif()
   list(APPEND PKG_NAMES "${NAME}")
   set(PKG_NAMES ${PKG_NAMES} CACHE INTERNAL "" FORCE)
-  set(PKG_ARGS_${NAME} ${ARGN} CACHE INTERNAL "" FORCE)
+  # quoting ARGN is neccessary to preserve \; within list items
+  # for example CMAKE_ARGS "-DTHIS_VAR=contains\;a\;list"
+  set(PKG_ARGS_${NAME} "${ARGN}" CACHE INTERNAL "" FORCE)
 endfunction()
