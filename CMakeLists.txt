@@ -130,17 +130,46 @@ file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/report/env.txt
   "DEPTH1_PATCH: ${DEPTH1_PATH}"
 )
 
+# extract CMAKE_GENERATOR
+set(cmake_generator "")
+set(PKG_CMAKE_ARGS ";${PKG_CMAKE_ARGS};")
+set(gen_regex ";-G([^;]+);")
+if(PKG_CMAKE_ARGS MATCHES "${gen_regex}")
+  set(cmake_generator_option CMAKE_GENERATOR "${CMAKE_MATCH_1}")
+  string(REGEX REPLACE "${gen_regex}" ";" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
+  string(REGEX REPLACE "^;" "" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
+  string(REGEX REPLACE ";$" "" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
+endif()
+
 foreach(pkg_name IN LISTS PKG_NAMES)
   message(STATUS "Package: ${pkg_name}:")
   message(STATUS "\t${PKG_ARGS_${pkg_name}}")
+
+  # replace \; in cmake args
+  set(allargs "${PKG_ARGS_${pkg_name}}${PKG_CMAKE_ARGS}")
+  set(sep "")
+  foreach(s "!" "#" "%" "&" "," ":" "=" "@" "`" "~")
+    if(NOT allargs MATCHES sep)
+      set(sep "${s}")
+      break()
+    endif()
+  endforeach()
+  if(sep STREQUAL "")
+    message(FATAL_ERROR "Can't find a good separator character for lists.")
+  endif()
+  string(REPLACE "\;" "${sep}" pkg_args "${PKG_ARGS_${pkg_name}}")
+  string(REPLACE "\;" "${sep}" global_args "${PKG_CMAKE_ARGS}")
+
   ExternalProject_Add(
     ${pkg_name}
-    ${PKG_ARGS_${pkg_name}}
-    CMAKE_ARGS ${PKG_CMAKE_ARGS}
+    ${pkg_args}
+    CMAKE_ARGS ${global_args}
       -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}
       -DCMAKE_PREFIX_PATH=${CMAKE_INSTALL_PREFIX}
       -DCMAKE_BUILD_TYPE=$<CONFIGURATION>
       -DCMAKE_MODULE_PATH=${hijack_modules_dir}
+    LIST_SEPARATOR "${sep}"
+    ${cmake_generator_option}
   )
   file(APPEND ${pkgs_in_file} "${pkg_name};${PKG_ARGS_${pkg_name}}\n")
 endforeach()
