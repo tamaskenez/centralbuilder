@@ -1,6 +1,5 @@
-set(BINARY_DIR ${BINARY_DIR})
-set(pkgs_in_file ${BINARY_DIR}/report/packages_request.txt)
-set(pkgs_out_file ${BINARY_DIR}/report/packages_current.txt)
+set(pkgs_in_file ${REPORT_DIR}/packages_request.txt)
+set(pkgs_out_file ${REPORT_DIR}/packages_current.txt)
 
 file(STRINGS ${pkgs_in_file} infile_lines)
 file(WRITE ${pkgs_out_file} "")
@@ -25,7 +24,8 @@ foreach(line IN LISTS infile_lines)
     endif()
     # replace original GIT_COMMIT (if any) with current one
     string(REGEX REPLACE ";GIT_COMMIT;[^;]*" "" line "${line}")
-    set(line ${line} GIT_COMMIT ${output})
+    set(line "${line};GIT_COMMIT;${output}")
+    string(REGEX REPLACE ";GIT_COMMIT;[^;]*" "" line2 "${line}")
   endif()
   file(APPEND ${pkgs_out_file} "${line}\n")
 endforeach()

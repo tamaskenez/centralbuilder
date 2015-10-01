@@ -67,7 +67,8 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   endif()
 endforeach()
 
-set(pkgs_in_file ${CMAKE_CURRENT_BINARY_DIR}/report/packages_request.txt)
+set(report_dir "${CMAKE_INSTALL_PREFIX}/centralbuilder_report")
+set(pkgs_in_file "${report_dir}/packages_request.txt")
 file(WRITE ${pkgs_in_file} "")
 
 find_package(Git QUIET REQUIRED)
@@ -119,7 +120,7 @@ endif()
 
 string(TIMESTAMP ts)
 string(TIMESTAMP ts_utc UTC)
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/report/env.txt
+file(WRITE "${report_dir}/env.txt"
   "TIMESTAMP: ${ts} = ${ts_utc}\n"
   "CMAKE_VERSION: ${CMAKE_VERSION}\n"
   "PKG_CMAKE_ARGS: ${PKG_CMAKE_ARGS}\n"
@@ -177,6 +178,7 @@ endforeach()
 add_custom_target(centralbuild_report ALL
   ${CMAKE_COMMAND}
     -DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+    -DREPORT_DIR=${report_dir}
     -P ${CMAKE_CURRENT_SOURCE_DIR}/create_report.cmake
   COMMENT "Executing report.cmake"
   DEPENDS ${PKG_NAMES}
