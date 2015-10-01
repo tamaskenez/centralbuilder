@@ -162,6 +162,22 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   string(REPLACE "\;" "${sep}" pkg_args "${PKG_ARGS_${pkg_name}}")
   string(REPLACE "\;" "${sep}" global_args "${PKG_CMAKE_ARGS}")
 
+#  # extract SOURCE_DIR
+#  set(source_dir_option "")
+#  set(pkg_args ";${pkg_args};")
+#  set(source_dir_regex ";SOURCE_DIR;([^;]+);")
+#  if(pkg_args MATCHES "${source_dir_regex}")
+#    set(source_dir "${CMAKE_MATCH_1}")
+#    string(REGEX REPLACE "${source_dir_regex}" ";" pkg_args "${pkg_args}")
+#    if(IS_ABSOLUTE "${SOURCE_DIR}")
+#      message(FATAL_ERROR "Package ${pkg_name}: SOURCE_DIR must be a relative path")
+#    endif()
+#    set(download_dir ${pkg_name}-prefix/src/${pkg_name}) # the default download dir
+#    set(source_dir_option DOWNLOAD_DIR ${download_dir} SOURCE_DIR ${download_dir}/${source_dir})
+#  endif()
+#  string(REGEX REPLACE "^;" "" pkg_args "${pkg_args}")
+#  string(REGEX REPLACE ";$" "" pkg_args "${pkg_args}")
+
   ExternalProject_Add(
     ${pkg_name}
     ${pkg_args}
@@ -172,6 +188,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
       -DCMAKE_MODULE_PATH=${hijack_modules_dir}
     LIST_SEPARATOR "${sep}"
     ${cmake_generator_option}
+#    ${source_dir_option}
   )
   file(APPEND ${pkgs_in_file} "${pkg_name};${PKG_ARGS_${pkg_name}}\n")
 endforeach()
