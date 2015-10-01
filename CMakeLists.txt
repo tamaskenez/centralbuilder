@@ -84,8 +84,6 @@ else()
   set(cb_commit "${output}")
 endif()
 
-set(DEPTH1_PATCH 1)
-
 set(extproj_cmake "${CMAKE_ROOT}/Modules/ExternalProject.cmake")
 set(patched_extproj_cmake "")
 if(DEPTH1_PATCH AND EXISTS "${extproj_cmake}")
