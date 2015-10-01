@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8.7)
 project(CentralBuilder)
 
-include(ExternalProject)
+include(CMakePrintHelpers)
 
 include(AddPkg.cmake)
 
@@ -28,7 +28,10 @@ foreach(pr IN LISTS PKG_REGISTRIES)
     configure_file("${pr}" "${tmpfile}" COPYONLY)
   else()
     message(STATUS "Downloading ${pr}")
-    file(DOWNLOAD "${pr}" "${tmpfile}")
+    file(DOWNLOAD "${pr}" "${tmpfile}" STATUS result)
+    if(result)
+      message(FATAL_ERROR "Download failed with ${result}.")
+    endif()
   endif()
   if(pr MATCHES "\\.cmake")
     include("${tmpfile}")
@@ -64,6 +67,71 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   endif()
 endforeach()
 
+set(pkgs_in_file ${CMAKE_CURRENT_BINARY_DIR}/report/packages_request.txt)
+file(WRITE ${pkgs_in_file} "")
+
+find_package(Git QUIET REQUIRED)
+execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  RESULT_VARIABLE result
+  OUTPUT_VARIABLE output
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+if(result)
+  message(WARNING "Can't retrieve this repo's git commit with rev-parse HEAD")
+  set(cb_commit "???")
+else()
+  set(cb_commit "${output}")
+endif()
+
+set(DEPTH1_PATCH 1)
+
+set(extproj_cmake "${CMAKE_ROOT}/Modules/ExternalProject.cmake")
+set(patched_extproj_cmake "")
+if(DEPTH1_PATCH AND EXISTS "${extproj_cmake}")
+  file(READ "${extproj_cmake}" f)
+  set(spc0 "[ \t\r\n]*")
+  set(spc "[ \t\r\n]+")
+  set(notspc "[^ \t\r\n]+")
+  set(ep_regex "execute_process${spc0}\\(${spc0}COMMAND${spc}${notspc}[gG][iI][tT]${notspc}${spc}clone${spc}[^)]*\\)")
+  string(REGEX MATCH  "${ep_regex}" ep_match "${f}")
+  if(ep_match)
+    string(REGEX REPLACE "${spc}clone${spc}" " clone --depth 1 " ep_patched_match "${ep_match}")
+    string(REPLACE "\\" "\\\\" ep_patched_match "${ep_patched_match}")
+    string(REGEX REPLACE "${ep_regex}" "${ep_patched_match}" patched_f "${f}")
+    set(patched_extproj_cmake "${CMAKE_CURRENT_BINARY_DIR}/PatchedExternalProject.cmake")
+    file(WRITE ${patched_extproj_cmake} "${patched_f}")
+  endif()
+endif()
+
+if(patched_extproj_cmake)
+  include(${patched_extproj_cmake})
+  set(DEPTH1_PATH ON)
+  message(STATUS "DEPTH1_PATCH was ON: ExternalProject.cmake has been patched to "
+    "add '--depth 1' to the git clone command. Please note that this is a nasty "
+    "hack and not guaranteed to work for all CMake versions.")
+else()
+  include(ExternalProject)
+  set(DEPTH1_PATH OFF)
+  message(STATUS "DEPTH1_PATCH was OFF: Using genuine ExternalProject.cmake. "
+    "You can specify -DDEPTH1_PATCH to patch ExternalProject.cmake to add "
+    "'--depth 1' to the git clone command. Please note that this is a nasty "
+    "hack and not guaranteed to work for all CMake versions.")
+endif()
+
+string(TIMESTAMP ts)
+string(TIMESTAMP ts_utc UTC)
+file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/report/env.txt
+  "TIMESTAMP: ${ts} = ${ts_utc}\n"
+  "CMAKE_VERSION: ${CMAKE_VERSION}\n"
+  "PKG_CMAKE_ARGS: ${PKG_CMAKE_ARGS}\n"
+  "PKG_REGISTRIES: ${PKG_REGISTRIES}\n"
+  "CENTRALBUILDER_GIT_COMMIT: ${cb_commit}\n"
+  "HOST_SYSTEM: ${CMAKE_HOST_SYSTEM}\n"
+  "HOST_SYSTEM_PROCESSOR: ${CMAKE_HOST_SYSTEM_PROCESSOR}\n"
+  "DEPTH1_PATCH: ${DEPTH1_PATH}"
+)
+
 foreach(pkg_name IN LISTS PKG_NAMES)
   message(STATUS "Package: ${pkg_name}:")
   message(STATUS "\t${PKG_ARGS_${pkg_name}}")
@@ -76,4 +144,15 @@ foreach(pkg_name IN LISTS PKG_NAMES)
       -DCMAKE_BUILD_TYPE=$<CONFIGURATION>
       -DCMAKE_MODULE_PATH=${hijack_modules_dir}
   )
+  file(APPEND ${pkgs_in_file} "${pkg_name};${PKG_ARGS_${pkg_name}}\n")
 endforeach()
+
+add_custom_target(centralbuild_report ALL
+  ${CMAKE_COMMAND}
+    -DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+    -P ${CMAKE_CURRENT_SOURCE_DIR}/create_report.cmake
+  COMMENT "Executing report.cmake"
+  DEPENDS ${PKG_NAMES}
+  VERBATIM
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+)
