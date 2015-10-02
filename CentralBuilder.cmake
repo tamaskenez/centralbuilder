@@ -85,7 +85,7 @@ if(NOT CONFIGS)
   message(FATAL_ERROR "No CONFIGS specified.")
 endif()
 
-message(STATUS "Running CentraBuilder.cmake")
+message(STATUS "Running CentralBuilder.cmake")
 message(STATUS "GLOBAL_CMAKE_ARGS: ${GLOBAL_CMAKE_ARGS}")
 message(STATUS "PKG_REGISTRIES: ${PKG_REGISTRIES}")
 message(STATUS "BINARY_DIR: ${BINARY_DIR}")
@@ -214,11 +214,14 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   string(REPLACE "\;" "${sep}" pkg_args "${pkg_args}")
 
   set(options "")
-  set(oneValueArgs GIT_REPOSITORY GIT_URL SOURCE_DIR)
+  set(oneValueArgs GIT_REPOSITORY GIT_URL GIT_TAG SOURCE_DIR)
   set(multiValueArgs DEPENDS CMAKE_ARGS)
   cmake_parse_arguments(PKG "${options}" "${oneValueArgs}"
                         "${multiValueArgs}" ${pkg_args} )
 
+  if(PKG_UNPARSED_ARGUMENTS)
+    message(FATAL_ERROR "Package ${pkg_name} invalid arguments: ${PKG_UNPARSED_ARGUMENTS}")
+  endif()
   if(PKG_GIT_REPOSITORY)
     if(PKG_GIT_URL)
       message(FATAL_ERROR "Package ${pkg_name}: both GIT_REPOSITORY and GIT_URL are specified")
@@ -252,7 +255,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   if(NOT EXISTS "${pkg_clone_dir}/.git")
     set(branch_option "")
     if(PKG_GIT_TAG)
-      set(branch_option --branch ${GIT_TAG})
+      set(branch_option --branch ${PKG_GIT_TAG})
     endif()
     execute_process(
       COMMAND ${GIT_EXECUTABLE} clone --depth 1 --recursive ${branch_option}
