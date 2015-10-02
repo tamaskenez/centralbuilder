@@ -36,8 +36,8 @@ function(add_pkg NAME)
     message(FATAL_ERROR "'${NAME}' is an invalid name for a package")
   endif()
   list(APPEND PKG_NAMES "${NAME}")
-  set(PKG_NAMES ${PKG_NAMES} PARENT)
+  set(PKG_NAMES ${PKG_NAMES} PARENT_SCOPE)
   # quoting ARGN is neccessary to preserve \; within list items
   # for example CMAKE_ARGS "-DTHIS_VAR=contains\;a\;list"
-  set(PKG_ARGS_${NAME} "${ARGN}" PARENT)
+  set(PKG_ARGS_${NAME} "${ARGN}" PARENT_SCOPE)
 endfunction()

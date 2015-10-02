@@ -79,4 +79,21 @@ If the super-project generator is multi-config, you need to add `--config`:
 Building the super-project will execute the ExternalProject custom targets
 which download, build and install all the packages.
 
+### Escaping
 
+To pass variables containing lists on the shell command line to a cmake command:
+
+    cmake ... "-DCONFIGS=Debug;Release"
+    cmake ... -DCONFIGS=Debug\;Release # backslash escapes in the shell:
+    # BAD!!: cmake ... "-DCONFIGS=Debug\;Release"
+
+    # backslash escapes in CMake:
+    cmake ... "-DGLOBAL_CMAKE_ARGS=Unix Makefiles;-DTESTVAR=one\;two"
+
+Also use `\;` in package registry files:
+
+    ZLIB;GIT_URL=<url>;CMAKE_ARGS;-DTESTVAR=one\;two
+
+and
+
+    add_pkg(ZLIB GIT_URL <url> CMAKE_ARGS "-DTESTVAR=one\;two")

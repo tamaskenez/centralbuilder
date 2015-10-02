@@ -8,7 +8,8 @@
 #
 #     cmake "-DPKG_CMAKE_ARGS=-G;Visual Studio 14" ... -P CentralBuilder.cmake
 #
-# Options:
+# Options: (not that all path options can be relative to the current working
+# directory)
 #
 # GLOBAL_CMAKE_ARGS: options passed to the cmake configure step of all packages
 #   same list your could pass to ExternalProject_Add's CMAKE_ARGS option
@@ -52,15 +53,32 @@ endif()
 if(NOT PKG_REGISTRIES)
   message(FATAL_ERROR "Specify at least one package registry (URL or file)"
                       " in the PKG_REGISTRIES variable")
+else()
+  set(prs "")
+  foreach(pr IN LISTS PKG_REGISTRIES)
+    get_filename_component(apr "${CMAKE_BINARY_DIR}/${pr}" ABSOLUTE)
+    if(IS_ABSOLUTE "${pr}" AND EXISTS "${pr}")
+      list(APPEND prs "${pr}")
+    elseif(NOT IS_ABSOLUTE "${pr}" AND EXISTS "${apr}")
+      list(APPEND prs "${apr}")
+    else()
+      list(APPEND prs "${pr}")
+    endif()
+  endforeach()
+  set(PKG_REGISTRIES "${prs}")
 endif()
 
 if(NOT BINARY_DIR)
   set(BINARY_DIR ${CMAKE_BINARY_DIR})
   message(STATUS "No BINARY_DIR specified, using current working directory.")
+elseif(NOT IS_ABSOLUTE "${BINARY_DIR}")
+  get_filename_component(BINARY_DIR "${CMAKE_BINARY_DIR}/${BINARY_DIR}" ABSOLUTE)
 endif()
 
 if(NOT INSTALL_PREFIX)
   message(FATAL_ERROR "No INSTALL_PREFIX specified.")
+elseif(NOT IS_ABSOLUTE "${INSTALL_PREFIX}")
+  get_filename_component(INSTALL_PREFIX "${CMAKE_BINARY_DIR}/${INSTALL_PREFIX}" ABSOLUTE)
 endif()
 
 if(NOT CONFIGS)
@@ -78,7 +96,7 @@ function(include_package_registry filename)
   include("${filename}")
   set(PKG_NAMES "${PKG_NAMES}" PARENT_SCOPE)
   foreach(name IN LISTS PKG_NAMES)
-    set(PKG_ARGS_${name} "${PKG_ARGS_${name}}" PARENT)
+    set(PKG_ARGS_${name} "${PKG_ARGS_${name}}" PARENT_SCOPE)
   endforeach()
 endfunction()
 
@@ -108,6 +126,7 @@ foreach(pr IN LISTS PKG_REGISTRIES)
       "or '.cmake' extension.")
   endif()
 endforeach()
+
 
 list(LENGTH PKG_NAMES num_pkgs)
 
@@ -150,9 +169,25 @@ file(WRITE "${report_dir}/env.txt"
   "GLOBAL_CMAKE_ARGS: ${GLOBAL_CMAKE_ARGS}\n"
   "PKG_REGISTRIES: ${PKG_REGISTRIES}\n"
   "CENTRALBUILDER_GIT_COMMIT: ${cb_commit}\n"
-  "HOST_SYSTEM: ${CMAKE_HOST_SYSTEM}\n"
-  "HOST_SYSTEM_PROCESSOR: ${CMAKE_HOST_SYSTEM_PROCESSOR}\n"
 )
+
+set(tp_source_dir ${BINARY_DIR}/centralbuilder-testproject)
+set(tp_binary_dir ${tp_source_dir}/b)
+
+configure_file(${CMAKE_CURRENT_LIST_DIR}/ReportCMakeLists.txt
+  ${tp_source_dir}/CMakeLists.txt COPYONLY)
+file(MAKE_DIRECTORY ${tp_binary_dir})
+execute_process(
+  COMMAND ${CMAKE_COMMAND}
+    ${GLOBAL_CMAKE_ARGS}
+    "-DCB_ENV_REPORT_FILE=${report_dir}/env.txt"
+    ${tp_source_dir}
+  WORKING_DIRECTORY ${tp_binary_dir}
+  RESULT_VARIABLE result
+)
+if(result)
+  message(FATAL_ERROR "Configuring test project failed.")
+endif()
 
 set(pkgs_in_file "${report_dir}/packages_request.txt")
 set(pkgs_out_file "${report_dir}/packages_current.txt")
@@ -201,7 +236,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   set(pkg_install_prefix "${INSTALL_PREFIX}")
   set(pkg_prefix_path "${INSTALL_PREFIX}")
   set(pkg_module_path "${hijack_modules_dir}")
-  set(pkg_source_dir "${cmake_clone_dir}")
+  set(pkg_source_dir "${pkg_clone_dir}")
   if(PKG_SOURCE_DIR)
     if(IS_ABSOLUTE "${PKG_SOURCE_DIR}")
       message(FATAL_ERROR "Package ${pkg_name}: SOURCE_DIR must be relative path")
@@ -212,15 +247,16 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   string(REPLACE "${sep}" "\;" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
 
 
+
   # clone if there's no git in the clone dir
   if(NOT EXISTS "${pkg_clone_dir}/.git")
     set(branch_option "")
-    if(ARG_GIT_TAG)
+    if(PKG_GIT_TAG)
       set(branch_option --branch ${GIT_TAG})
     endif()
     execute_process(
       COMMAND ${GIT_EXECUTABLE} clone --depth 1 --recursive ${branch_option}
-        ${ARG_GIT_URL} ${pkg_clone_dir}
+        ${PKG_GIT_URL} ${pkg_clone_dir}
       RESULT_VARIABLE result
     )
     if(result)
@@ -247,8 +283,8 @@ foreach(pkg_name IN LISTS PKG_NAMES)
         -DCMAKE_INSTALL_PREFIX=${pkg_install_prefix}
         "-DCMAKE_PREFIX_PATH=${pkg_prefix_path}"
         "-DCMAKE_MODULE_PATH=${pkg_module_path}"
-        "${PKG_CMAKE_ARGS}"
-        "${GLOBAL_CMAKE_ARGS}"
+        ${PKG_CMAKE_ARGS}
+        ${GLOBAL_CMAKE_ARGS}
         -DCMAKE_BUILD_TYPE=${config}
         ${pkg_source_dir}
       WORKING_DIRECTORY ${pkg_binary_dir}
@@ -283,7 +319,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
 
   endforeach()
 
-  set(line "${pkg_name};${PKG_ARGS_${pkg_name}}"
+  set(line "${pkg_name};${PKG_ARGS_${pkg_name}}")
   file(APPEND ${pkgs_in_file} "${line}\n")
 
   # replace original GIT_TAG (if any) with current one
@@ -291,3 +327,18 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   file(APPEND ${pkgs_out_file} "${line};GIT_TAG;${pkg_rev_parse_head}\n")
 
 endforeach()
+
+execute_process(
+  COMMAND ${CMAKE_COMMAND}
+    ${GLOBAL_CMAKE_ARGS}
+    "-DCB_FIND_PACKAGE_REPORT_FILE=${report_dir}/find_packages.txt"
+    "-DPKG_NAMES=${PKG_NAMES}"
+    "-DCMAKE_PREFIX_PATH=${pkg_prefix_path}"
+    "-DCMAKE_MODULE_PATH=${pkg_module_path}"
+    ${tp_source_dir}
+  WORKING_DIRECTORY ${tp_binary_dir}
+  RESULT_VARIABLE result
+)
+if(result)
+  message(WARNING "Configuring find-package test report failed.")
+endif()
