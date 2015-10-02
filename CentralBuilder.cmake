@@ -40,7 +40,7 @@
 
 include(CMakePrintHelpers)
 include(CMakeParseArguments)
-include(AddPkg.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/AddPkg.cmake)
 
 if(NOT GLOBAL_CMAKE_ARGS)
   message(STATUS "The GLOBAL_CMAKE_ARGS variable is empty.")
@@ -146,7 +146,7 @@ endforeach()
 
 find_package(Git QUIET REQUIRED)
 execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
-  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
   RESULT_VARIABLE result
   OUTPUT_VARIABLE output
   OUTPUT_STRIP_TRAILING_WHITESPACE
