@@ -4,6 +4,8 @@
 #             [SOURCE_DIR <source-dir>]
 #             [DEPENDS <dependencies...>])
 #
+# For detailed information see README.md
+#
 # Use add_pkg in the package registry files to specify packages.
 # The parameters are based on the ExternalProject_Add's parameters:
 #

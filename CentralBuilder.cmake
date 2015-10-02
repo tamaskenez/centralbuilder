@@ -4,43 +4,23 @@
 #
 #     cmake [options] -P CentralBuilder.cmake
 #
+# For detailed information see README.md
+#
 # Define the options by setting the following variables with -D, e.g.
 #
 #     cmake "-DPKG_CMAKE_ARGS=-G;Visual Studio 14" ... -P CentralBuilder.cmake
 #
-# Options: (not that all path options can be relative to the current working
-# directory)
+# Available options variables:
 #
-# GLOBAL_CMAKE_ARGS: options passed to the cmake configure step of all packages
-#   same list your could pass to ExternalProject_Add's CMAKE_ARGS option
-#   Usually this list contains the cmake generator (-G) and toolchain options.
-#
-# PKG_REGISTRIES: list of file paths, (relative or absolute) or URLs of so
-#   called package registry files which define what packages to build.
-#   They're either simple text files with *.txt extension or cmake file
-#   with *.cmake extension.
-#   The text files define one package per line. Each line is similar to
-#   what you would pass to ExternalProject_Add. Example
-#
-#       zlib;GIT_REPOSITORY;<url>;CMAKE_ARGS;-DBUILD_SHARED_LIBS=0
-#
-#   The same line in the cmake file should use the add_pkg command:
-#
-#       add_pkg(zlib GIT_REPOSITORY <url> CMAKE_ARGS -DBUILD_SHARED_LIBS=0)
-#
-#   The cmake file may use any other cmake commands and variables.
-#
-# BINARY_DIR: Build dir for the packages. Defaults to the current working
-#   directory.
-#
-# INSTALL_PREFIX: CMAKE_INSTALL_PREFIX and CMAKE_PREFIX_PATH for the packages
-#
-# CONFIGS: list of configuration names like Debug;Release
-
+# - GLOBAL_CMAKE_ARGS
+# - PKG_REGISTRIES
+# - BINARY_DIR
+# - INSTALL_PREFIX
+# - CONFIGS
 
 include(CMakePrintHelpers)
 include(CMakeParseArguments)
-include(${CMAKE_CURRENT_LIST_DIR}/AddPkg.cmake)
+include(${CMAKE_CURRENT_LIST_DIR}/detail/AddPkg.cmake)
 
 if(NOT GLOBAL_CMAKE_ARGS)
   message(STATUS "The GLOBAL_CMAKE_ARGS variable is empty.")
@@ -133,7 +113,7 @@ list(LENGTH PKG_NAMES num_pkgs)
 message(STATUS "Loaded ${num_pkgs} packages.")
 
 set(hijack_modules_dir ${BINARY_DIR}/hijack_modules)
-configure_file(${CMAKE_CURRENT_LIST_DIR}/FindPackageTryConfigFirst.cmake
+configure_file(${CMAKE_CURRENT_LIST_DIR}/detail/FindPackageTryConfigFirst.cmake
   ${hijack_modules_dir}/FindPackageTryConfigFirst.cmake
   COPYONLY)
 foreach(pkg_name IN LISTS PKG_NAMES)
@@ -174,7 +154,7 @@ file(WRITE "${report_dir}/env.txt"
 set(tp_source_dir ${BINARY_DIR}/centralbuilder-testproject)
 set(tp_binary_dir ${tp_source_dir}/b)
 
-configure_file(${CMAKE_CURRENT_LIST_DIR}/ReportCMakeLists.txt
+configure_file(${CMAKE_CURRENT_LIST_DIR}/detail/ReportCMakeLists.txt
   ${tp_source_dir}/CMakeLists.txt COPYONLY)
 file(MAKE_DIRECTORY ${tp_binary_dir})
 execute_process(
@@ -248,8 +228,6 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   endif()
 
   string(REPLACE "${sep}" "\;" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
-
-
 
   # clone if there's no git in the clone dir
   if(NOT EXISTS "${pkg_clone_dir}/.git")
