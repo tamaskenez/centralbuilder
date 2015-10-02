@@ -22,10 +22,9 @@ foreach(line IN LISTS infile_lines)
         "stderr: '${error}'\n")
       set(output "???")
     endif()
-    # replace original GIT_COMMIT (if any) with current one
-    string(REGEX REPLACE ";GIT_COMMIT;[^;]*" "" line "${line}")
-    set(line "${line};GIT_COMMIT;${output}")
-    string(REGEX REPLACE ";GIT_COMMIT;[^;]*" "" line2 "${line}")
+    # replace original GIT_TAG (if any) with current one
+    string(REGEX REPLACE ";GIT_TAG;[^;]*" "" line "${line}")
+    set(line "${line};GIT_TAG;${output}")
   endif()
   file(APPEND ${pkgs_out_file} "${line}\n")
 endforeach()
