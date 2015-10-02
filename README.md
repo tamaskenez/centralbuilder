@@ -68,9 +68,9 @@ Both the text and cmake package registry use keywords borrowed from the
 module. Here follows the list of valid options you can use with `add_pkg` or
 in the text file:
 
-  add_pkg(<name> GIT_REPOSITORY|GIT_URL <url> [GIT_TAG <branch/tag/id>]
-          [CMAKE_ARGS <args..>] [SOURCE_DIR <source-dir>]
-          [DEPENDS <dependencies...>])
+    add_pkg(<name> GIT_REPOSITORY|GIT_URL <url> [GIT_TAG <branch/tag/id>]
+            [CMAKE_ARGS <args..>] [SOURCE_DIR <source-dir>]
+            [DEPENDS <dependencies...>])
 
 The first argument must be the name of the package. Let it be the same what
 you pass to the `find_package` command because the packages will be tested
@@ -120,11 +120,10 @@ CentralBuilder creates various reports about the build in
 
 ### Further Details
 
-- In the cmake package registry files don't call `add_pkg` from within a
-  function
+- Don't call `add_pkg` from within a function
 - CentralBuilder shadows the official CMake find-modules of
   the packages you are building. For example, if you're
-  building `ZLIB` and `PNG` then PNG's `find_package(ZLIB)` will find the
+  building `ZLIB` and `PNG` then `PNG`'s `find_package(ZLIB)` will find the
   config-module of `ZLIB` before it attempts `FindZLIB.cmake` from the
   CMake distribution. This works only for packages providing config-modules.
   Also, in your own project you need to solve this issue yourself.
