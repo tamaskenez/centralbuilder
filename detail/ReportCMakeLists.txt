@@ -2,8 +2,6 @@ cmake_minimum_required(VERSION ${CMAKE_VERSION})
 project(CentralBuilderReport C CXX)
 
 set(cmake_vars
-  HOST_SYSTEM
-  HOST_SYSTEM_PROCESSOR
   SYSTEM
   SYSTEM_PROCESSOR
   GENERATOR
@@ -28,6 +26,13 @@ set(cmake_lang_vars
 )
 
 if(CB_ENV_REPORT_FILE)
+  if(NOT CMAKE_SYSTEM STREQUAL CMAKE_HOST_SYSTEM)
+    file(APPEND "${CB_ENV_REPORT_FILE}" "HOST_SYSTEM: ${CMAKE_HOST_SYSTEM}\n")
+  endif()
+  if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL CMAKE_HOST_SYSTEM_PROCESSOR)
+    file(APPEND "${CB_ENV_REPORT_FILE}" "HOST_SYSTEM_PROCESSOR: ${CMAKE_HOST_SYSTEM_PROCESSOR}\n")
+  endif()
+
   foreach(v IN LISTS cmake_vars)
     set(cv CMAKE_${v})
     if(${cv})
