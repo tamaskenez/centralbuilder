@@ -35,17 +35,17 @@ It clones, builds and installs the packages defined in your file.
 or `*.cmake` package registry files.
 The text format defines one package per line, the arguments should be separated
 by semicolons.
-The cmake format uses the custom `add_pkg` function. Since you can also use
-any cmake commands here use this format if you want to defined variables or
+The cmake format uses the custom `add_pkg` function. You can also use
+any CMake commands here so use this format if you want to define variables or
 add additional logic.
 
-`BINARY_DIR` is where the build directories and clones will reside.
-The packages will be installed to 'INSTALL_DIR`. `BINARY_DIR` defaults
+`BINARY_DIR` is where the build directories and clones will be created.
+The packages will be installed to `INSTALL_DIR`. `BINARY_DIR` defaults
 to the current directory.
 
 `GLOBAL_CMAKE_ARGS` is a list of cmake-options which will be passed to each
 package's `cmake` configure step. You can define here the CMake generator,
-toolchain and the like (`-G`, `-A`, `-T`, `-DCMAKE_TOOLCHAIN`)
+toolchain and the like (`-G`, `-A`, `-T`, `-DCMAKE_TOOLCHAIN_FILE`)
 
 `CONFIGS` is the list of configurations to build, like `Debug;Release`
 
@@ -57,23 +57,26 @@ escape the semicolon or quote the parameter. Examples:
     -DCONFIGS=Debug\;Release
     "-DCONFIGS=Debug;Release"
 
-In case the an argument contains a list you need to escape it for CMake:
+If argument contains a nested list you need to escape it for CMake:
 
     "-DGLOBAL_CMAKE_ARGS=-G;Unix Makefiles;-DTESTVAR=one\;two"
 
 ### Package Registry Files
 
-Both the text and cmake package registry use keywords borrowed from the
+Both the `txt`-style and `cmake`-style package files use keywords borrowed from the
 [ExternalProject](https://cmake.org/cmake/help/latest/module/ExternalProject.html)
 module. Here follows the list of valid options you can use with `add_pkg` or
 in the text file:
 
-    add_pkg(<name> GIT_REPOSITORY|GIT_URL <url> [GIT_TAG <branch/tag/id>]
-            [CMAKE_ARGS <args..>] [SOURCE_DIR <source-dir>]
+    add_pkg(<name>
+            GIT_REPOSITORY|GIT_URL <url>
+            [GIT_TAG <branch/tag/id>]
+            [CMAKE_ARGS <args..>]
+            [SOURCE_DIR <source-dir>]
             [DEPENDS <dependencies...>])
 
 The first argument must be the name of the package. Let it be the same what
-you pass to the `find_package` command because the packages will be tested
+you would pass to the `find_package` command because the packages will be tested
 by `find_package` command after installation.
 
 Use `GIT_REPOSITORY` or the shorter synonym `GIT_URL` to specify the URL of the
@@ -85,9 +88,9 @@ git-clones will be done with `--depth 1` to save time and storage.
 With `CMAKE_ARGS` you can list options to be passed to the cmake configuration
 step of the package.
 
-`SOURCE_DIR` is must be a relative path. Use this if the package's
+`SOURCE_DIR` is a relative path. Use this if the package's
 `CMakeLists.txt` is in a subdirectory and not in the root of the repository.
-(Note that one works a bit differently than by ExternalProject_Add)
+(Note that this one works a bit differently than in ExternalProject_Add)
 
 You can list the dependencies of the package with the `DEPENDS` option. This
 is ignored for now.
@@ -109,18 +112,18 @@ CentralBuilder creates various reports about the build in
 
 - `env.txt` lists the arguments of CentralBuilder.cmake and some information
   about the build environment
-- `packages_request.txt` is union of the input package registry files in text
+- `packages_request.txt` is the union of the input package registry files in text
   format
-- `packages_current.txt` is the same except it also describes actual
+- `packages_current.txt` is the same except it describes the actual
   git-commit-ids with the GIT_TAG keyword. Use this file to reproduce the same
-  build of all packages later.
+  build of all the packages later.
 - `find_packages.txt` lists the result of `find_package` commands for the
   packages after installation.
 
 
 ### Further Details
 
-- Don't call `add_pkg` from within a function
+- Don't call `add_pkg` from within a function.
 - CentralBuilder shadows the official CMake find-modules of
   the packages you are building. For example, if you're
   building `ZLIB` and `PNG` then `PNG`'s `find_package(ZLIB)` will find the
