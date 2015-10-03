@@ -1,10 +1,62 @@
 cmake_minimum_required(VERSION ${CMAKE_VERSION})
 project(CentralBuilderReport C CXX)
 
+set(cmake_vars
+  HOST_SYSTEM
+  HOST_SYSTEM_PROCESSOR
+  SYSTEM
+  SYSTEM_PROCESSOR
+  GENERATOR
+  GENERATOR_PLATFORM
+  GENERATOR_TOOLSET
+  TOOLCHAIN_FILE
+  EXTRA_GENERATOR
+  SIZEOF_VOID_P
+  STANDARD_LIBRARIES
+  XCODE_PLATFORM_TOOLSET
+  XCODE_VERSION
+  MSVC_VERSION
+)
+
+set(cmake_lang_vars
+  COMPILER
+  COMPILER_EXTERNAL_TOOLCHAIN
+  COMPILER_TARGET
+  COMPILER_VERSION
+  SIZEOF_DATA_PTR
+)
+
 if(CB_ENV_REPORT_FILE)
-  file(APPEND "${CB_ENV_REPORT_FILE}"
-    "HOST_SYSTEM: ${CMAKE_HOST_SYSTEM}\n"
-    "HOST_SYSTEM_PROCESSOR: ${CMAKE_HOST_SYSTEM_PROCESSOR}\n")
+  foreach(v IN LISTS cmake_vars)
+    set(cv CMAKE_${v})
+    if(${cv})
+      file(APPEND "${CB_ENV_REPORT_FILE}" "${v}: ${${cv}}")
+    endif()
+  endforeach()
+  foreach(v IN LISTS cmake_lang_vars)
+    set(ccv CMAKE_C_${v})
+    set(ccxxv CMAKE_CXX_${v})
+    set(y ${ccv})
+    set(yxx ${ccxxv})
+    set(s "")
+    if(y)
+      if(yxx)
+        if(y STREQUAL yxx)
+          set(s "C/CXX_${v}: ${y}\n")
+        else()
+          set(s "C_${v}: ${y}\nCXX_${v}: ${yxx}\n")
+        endif()
+      else()
+        set(s "C_${v}: ${y}\n")
+      endif()
+    elseif(yxx)
+      set(s "CXX_${v}: ${yxx}\n")
+    endif()
+    if(s)
+      file(APPEND "${CB_ENV_REPORT_FILE}" "${s}")
+    endif()
+  endforeach()
+
   set(CB_ENV_REPORT_FILE "" CACHE INTERNAL "" FORCE)
 endif()
 
