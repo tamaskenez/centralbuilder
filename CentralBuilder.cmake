@@ -200,7 +200,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
                         "${multiValueArgs}" ${pkg_args} )
 
   if(PKG_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR "Package ${pkg_name} invalid arguments: ${PKG_UNPARSED_ARGUMENTS}")
+    message(FATAL_ERROR "Package ${pkg_name}: invalid arguments: ${PKG_UNPARSED_ARGUMENTS}")
   endif()
   if(PKG_GIT_REPOSITORY)
     if(PKG_GIT_URL)
@@ -241,7 +241,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
       RESULT_VARIABLE result
     )
     if(result)
-      message(FATAL_ERROR "Package ${pkg_name} git clone failed.")
+      message(FATAL_ERROR "Package ${pkg_name}: git clone failed.")
     endif()
   endif()
 
@@ -253,7 +253,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
   if(result)
-    message(FATAL_ERROR "Package ${pkg_name} git rev-parse HEAD failed")
+    message(FATAL_ERROR "Package ${pkg_name}: git rev-parse HEAD failed")
   endif()
 
   foreach(config IN LISTS CONFIGS)
