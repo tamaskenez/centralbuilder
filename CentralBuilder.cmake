@@ -174,6 +174,19 @@ set(pkgs_out_file "${report_dir}/packages_current.txt")
 file(WRITE ${pkgs_in_file} "")
 file(WRITE ${pkgs_out_file} "")
 
+set(log_file "${report_dir}/log.txt")
+set(failed_pkgs "")
+set(config "")
+file(WRITE "${log_file}" "")
+macro(log_error msg)
+  if(config)
+    file(APPEND ${log_file} "[ERROR] Package ${pkg_name} (${config}): ${msg}")
+  else()
+    file(APPEND ${log_file} "[ERROR] Package ${pkg_name}: ${msg}")
+  endif()
+  list(APPEND failed_pkgs "${pkg_name}")
+endmacro()
+
 foreach(pkg_name IN LISTS PKG_NAMES)
   set(pkg_args "${PKG_ARGS_${pkg_name}}")
 
@@ -189,7 +202,8 @@ foreach(pkg_name IN LISTS PKG_NAMES)
     endif()
   endforeach()
   if(sep STREQUAL "")
-    message(FATAL_ERROR "Can't find a good separator character for lists.")
+    log_error("Can't find a good separator character for lists.")
+    continue()
   endif()
   string(REPLACE "\;" "${sep}" pkg_args "${pkg_args}")
 
@@ -200,17 +214,20 @@ foreach(pkg_name IN LISTS PKG_NAMES)
                         "${multiValueArgs}" ${pkg_args} )
 
   if(PKG_UNPARSED_ARGUMENTS)
-    message(FATAL_ERROR "Package ${pkg_name}: invalid arguments: ${PKG_UNPARSED_ARGUMENTS}")
+    log_error("Package ${pkg_name}: invalid arguments: ${PKG_UNPARSED_ARGUMENTS}")
+    continue()
   endif()
   if(PKG_GIT_REPOSITORY)
     if(PKG_GIT_URL)
-      message(FATAL_ERROR "Package ${pkg_name}: both GIT_REPOSITORY and GIT_URL are specified")
+      log_error("Package ${pkg_name}: both GIT_REPOSITORY and GIT_URL are specified")
+      continue()
     else()
       set(PKG_GIT_URL "${PKG_GIT_REPOSITORY}")
     endif()
   else()
     if(NOT PKG_GIT_URL)
-      message(FATAL_ERROR "Package ${pkg_name}: either GIT_REPOSITORY or GIT_URL must be specified")
+      log_error("Package ${pkg_name}: either GIT_REPOSITORY or GIT_URL must be specified")
+      continue()
     endif()
   endif()
 
@@ -222,7 +239,8 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   set(pkg_source_dir "${pkg_clone_dir}")
   if(PKG_SOURCE_DIR)
     if(IS_ABSOLUTE "${PKG_SOURCE_DIR}")
-      message(FATAL_ERROR "Package ${pkg_name}: SOURCE_DIR must be relative path")
+      log_error("Package ${pkg_name}: SOURCE_DIR must be relative path")
+      continue()
     endif()
     set(pkg_source_dir "${pkg_source_dir}/${PKG_SOURCE_DIR}")
   endif()
@@ -241,7 +259,8 @@ foreach(pkg_name IN LISTS PKG_NAMES)
       RESULT_VARIABLE result
     )
     if(result)
-      message(FATAL_ERROR "Package ${pkg_name}: git clone failed.")
+      log_error("Package ${pkg_name}: git clone failed.")
+      continue()
     endif()
   endif()
 
@@ -253,7 +272,8 @@ foreach(pkg_name IN LISTS PKG_NAMES)
     OUTPUT_STRIP_TRAILING_WHITESPACE
   )
   if(result)
-    message(FATAL_ERROR "Package ${pkg_name}: git rev-parse HEAD failed")
+    log_error("Package ${pkg_name}: git rev-parse HEAD failed")
+    continue()
   endif()
 
   foreach(config IN LISTS CONFIGS)
@@ -272,7 +292,8 @@ foreach(pkg_name IN LISTS PKG_NAMES)
       RESULT_VARIABLE result
     )
     if(result)
-      message(FATAL_ERROR "Package ${pkg_name}: configure failed.")
+      log_error("Package ${pkg_name}: configure failed.")
+      continue()
     endif()
 
     # build
@@ -283,7 +304,8 @@ foreach(pkg_name IN LISTS PKG_NAMES)
       RESULT_VARIABLE result
     )
     if(result)
-      message(FATAL_ERROR "Package ${pkg_name}: build failed.")
+      log_error("Package ${pkg_name}: build failed.")
+      continue()
     endif()
 
     # separate install to help debugging
@@ -295,7 +317,8 @@ foreach(pkg_name IN LISTS PKG_NAMES)
       RESULT_VARIABLE result
     )
     if(result)
-      message(FATAL_ERROR "Package ${pkg_name}: install failed.")
+      log_error("Package ${pkg_name}: install failed.")
+      continue()
     endif()
 
   endforeach()
@@ -306,6 +329,10 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   # replace original GIT_TAG (if any) with current one
   string(REGEX REPLACE ";GIT_TAG;[^;]*" "" line "${line}")
   file(APPEND ${pkgs_out_file} "${line};GIT_TAG;${pkg_rev_parse_head}\n")
+
+  if(failed_pkgs)
+    file(APPEND "${log_file}" "[ERROR] Failed packages: ${failed_pkgs}")
+  endif()
 
 endforeach()
 
@@ -322,4 +349,14 @@ execute_process(
 )
 if(result)
   message(WARNING "Configuring find-package test report failed.")
+endif()
+
+if(failed_pkgs)
+  message(FATAL_ERROR "Build done with errors. See ${report_dir} for more "
+    "information. ${report_dir}/log.txt contains the log of errors and list "
+    "of failed packages.")
+else()
+  message(FATAL_ERROR "Build done with success. See ${report_dir} for more "
+    "information. ${report_dir}/find_packages.txt contains the log of test "
+    "find_package commands for each package.")
 endif()
