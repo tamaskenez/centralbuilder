@@ -356,7 +356,7 @@ if(failed_pkgs)
     "information. ${report_dir}/log.txt contains the log of errors and list "
     "of failed packages.")
 else()
-  message(FATAL_ERROR "Build done with success. See ${report_dir} for more "
+  message(STATUS "Build done with success. See ${report_dir} for more "
     "information. ${report_dir}/find_packages.txt contains the log of test "
     "find_package commands for each package.")
 endif()
