@@ -81,58 +81,6 @@ message(STATUS "BINARY_DIR: ${BINARY_DIR}")
 message(STATUS "INSTALL_PREFIX: ${INSTALL_PREFIX}")
 message(STATUS "CONFIGS: ${CONFIGS}")
 
-function(include_package_registry filename)
-  include("${filename}")
-  set(PKG_NAMES "${PKG_NAMES}" PARENT_SCOPE)
-  foreach(name IN LISTS PKG_NAMES)
-    set(PKG_ARGS_${name} "${PKG_ARGS_${name}}" PARENT_SCOPE)
-  endforeach()
-endfunction()
-
-set(PKG_NAMES "")
-set(tmpfile ${BINARY_DIR}/pkg_reg.tmp)
-foreach(pr IN LISTS PKG_REGISTRIES)
-  if(EXISTS "${pr}")
-    message(STATUS "Loading ${pr}")
-    configure_file("${pr}" "${tmpfile}" COPYONLY)
-  else()
-    message(STATUS "Downloading ${pr}")
-    file(DOWNLOAD "${pr}" "${tmpfile}" STATUS result)
-    list(GET result 0 code)
-    if(code)
-      message(FATAL_ERROR "Download failed with ${result}.")
-    endif()
-  endif()
-  if(pr MATCHES "\\.cmake")
-    include_package_registry("${tmpfile}")
-  elseif(pr MATCHES "\\.txt")
-    file(READ "${tmpfile}" prc)
-    foreach(line IN LISTS prc)
-      add_pkg(${line})
-    endforeach()
-  else()
-    message(FATAL_ERROR "The package registry files must have either '.txt' "
-      "or '.cmake' extension.")
-  endif()
-endforeach()
-
-
-list(LENGTH PKG_NAMES num_pkgs)
-
-message(STATUS "Loaded ${num_pkgs} packages.")
-
-set(hijack_modules_dir ${BINARY_DIR}/hijack_modules)
-configure_file(${CMAKE_CURRENT_LIST_DIR}/detail/FindPackageTryConfigFirst.cmake
-  ${hijack_modules_dir}/FindPackageTryConfigFirst.cmake
-  COPYONLY)
-foreach(pkg_name IN LISTS PKG_NAMES)
-  if(EXISTS ${CMAKE_ROOT}/Modules/Find${pkg_name}.cmake)
-    #write a hijack module
-    file(WRITE "${hijack_modules_dir}/Find${pkg_name}.cmake"
-      "include(FindPackageTryConfigFirst)\nfind_package_try_config_first()\n")
-  endif()
-endforeach()
-
 find_package(Git QUIET REQUIRED)
 execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
@@ -178,10 +126,66 @@ if(result)
   message(FATAL_ERROR "Configuring test project failed.")
 endif()
 
-set(pkgs_in_file "${report_dir}/packages_request.txt")
+set(pkgs_request_file "${report_dir}/packages_request.txt")
 set(pkgs_out_file "${report_dir}/packages_current.txt")
-file(WRITE ${pkgs_in_file} "")
+file(WRITE ${pkgs_request_file} "")
 file(WRITE ${pkgs_out_file} "")
+
+function(include_cmake_package_registry filename)
+  execute_process(
+    COMMAND ${CMAKE_COMMAND}
+      ${GLOBAL_CMAKE_ARGS}
+      "-DCB_PKGS_REQUEST_FILE=${pkgs_request_file}"
+      "-DCB_PKG_REGISTRY_FILE=${filename}"
+      ${tp_source_dir}
+    WORKING_DIRECTORY ${tp_binary_dir}
+    RESULT_VARIABLE result
+  )
+endfunction()
+
+set(PKG_NAMES "")
+set(tmpfile ${BINARY_DIR}/pkg_reg.tmp)
+foreach(pr IN LISTS PKG_REGISTRIES)
+  if(EXISTS "${pr}")
+    message(STATUS "Loading ${pr}")
+    configure_file("${pr}" "${tmpfile}" COPYONLY)
+  else()
+    message(STATUS "Downloading ${pr}")
+    file(DOWNLOAD "${pr}" "${tmpfile}" STATUS result)
+    list(GET result 0 code)
+    if(code)
+      message(FATAL_ERROR "Download failed with ${result}.")
+    endif()
+  endif()
+  if(pr MATCHES "\\.cmake")
+    include_cmake_package_registry("${tmpfile}")
+  elseif(pr MATCHES "\\.txt")
+    file(READ "${tmpfile}" prc)
+    foreach(line IN LISTS prc)
+      add_pkg(${line})
+    endforeach()
+  else()
+    message(FATAL_ERROR "The package registry files must have either '.txt' "
+      "or '.cmake' extension.")
+  endif()
+endforeach()
+
+
+list(LENGTH PKG_NAMES num_pkgs)
+
+message(STATUS "Loaded ${num_pkgs} packages.")
+
+set(hijack_modules_dir ${BINARY_DIR}/hijack_modules)
+configure_file(${CMAKE_CURRENT_LIST_DIR}/detail/FindPackageTryConfigFirst.cmake
+  ${hijack_modules_dir}/FindPackageTryConfigFirst.cmake
+  COPYONLY)
+foreach(pkg_name IN LISTS PKG_NAMES)
+  if(EXISTS ${CMAKE_ROOT}/Modules/Find${pkg_name}.cmake)
+    #write a hijack module
+    file(WRITE "${hijack_modules_dir}/Find${pkg_name}.cmake"
+      "include(FindPackageTryConfigFirst)\nfind_package_try_config_first()\n")
+  endif()
+endforeach()
 
 set(log_file "${report_dir}/log.txt")
 set(failed_pkgs "")
@@ -333,7 +337,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   endforeach()
 
   set(line "${pkg_name};${PKG_ARGS_${pkg_name}}")
-  file(APPEND ${pkgs_in_file} "${line}\n")
+  file(APPEND ${pkgs_request_file} "${line}\n")
 
   # replace original GIT_TAG (if any) with current one
   string(REGEX REPLACE ";GIT_TAG;[^;]*" "" line "${line}")
