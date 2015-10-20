@@ -18,6 +18,15 @@
 # - INSTALL_PREFIX
 # - CONFIGS
 
+if(CMAKE_VERSION VERSION_LESS 3.2)
+  macro(continue)
+    message(FATAL_ERROR "This CMake version (${CMAKE_VERSION}) does not "
+      "support the `continue` command. Processing aborted at the first "
+      "error. Please check the file `${INSTALL_PREFIX}/centralbuilder_report"
+      "/log.txt`.")
+  endmacro()
+endif()
+
 include(CMakePrintHelpers)
 include(CMakeParseArguments)
 include(${CMAKE_CURRENT_LIST_DIR}/detail/AddPkg.cmake)
