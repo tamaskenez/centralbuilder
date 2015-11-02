@@ -40,7 +40,7 @@ any CMake commands here so use this format if you want to define variables or
 add additional logic.
 
 `BINARY_DIR` is where the build directories and clones will be created.
-The packages will be installed to `INSTALL_DIR`. `BINARY_DIR` defaults
+The packages will be installed to `INSTALL_PREFIX`. `BINARY_DIR` defaults
 to the current directory.
 
 `GLOBAL_CMAKE_ARGS` is a list of cmake-options which will be passed to each
@@ -108,7 +108,7 @@ and also in the cmake files:
 ### Build Report
 
 CentralBuilder creates various reports about the build in
-`<INSTALL_DIR>/centralbuilder_report`. These are:
+`<INSTALL_PREFIX>/centralbuilder_report`. These are:
 
 - `env.txt` lists the arguments of CentralBuilder.cmake and some information
   about the build environment
