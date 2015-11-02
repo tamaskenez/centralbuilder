@@ -47,5 +47,5 @@ function(add_pkg NAME)
         "CB_OUT_FILE_TO_APPEND = \"${CB_OUT_FILE_TO_APPEND}\" "
         "is a directory")
   endif()
-  file(APPEND "${CB_OUT_FILE_TO_APPEND}" "${NAME}\;${ARGN}")
+  file(APPEND "${CB_OUT_FILE_TO_APPEND}" "${NAME};${ARGN}\n")
 endfunction()

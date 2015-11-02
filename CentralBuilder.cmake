@@ -127,8 +127,10 @@ endif()
 
 # We are reading the package registry file specified for this script
 # The processed requests should be appended to pkg_requests_file
-set(pkg_requests_file "${report_dir}/package_requests.txt")
+set(pkg_requests_file "${report_dir}/packages_requested.txt")
 file(WRITE ${pkg_requests_file} "")
+set(pkg_resolved_file "${report_dir}/packages_resolved.txt")
+file(WRITE ${pkg_resolved_file} "")
 
 # Invokes the test project to load a *.cmake
 # package registry file and by executing it
@@ -168,7 +170,7 @@ foreach(pr IN LISTS PKG_REGISTRIES)
   if(pr MATCHES "\\.cmake")
     include_cmake_package_registry("${tmpfile}" "${pkg_requests_file}")
   elseif(pr MATCHES "\\.txt")
-    file(READ "${tmpfile}" prc)
+    file(STRINGS "${tmpfile}" prc)
     foreach(line IN LISTS prc)
       file(APPEND "${pkg_requests_file}" "${line}")
     endforeach()
@@ -178,14 +180,21 @@ foreach(pr IN LISTS PKG_REGISTRIES)
   endif()
 endforeach()
 
-message(FATAL_ERROR yes)
-
+# extract package names
 set(PKG_NAMES "")
+file(STRINGS "${pkg_requests_file}" PKG_REQUESTS)
+foreach(l IN LISTS PKG_REQUESTS)
+  if(NOT l STREQUAL "")
+    # first item should be the package name
+    list(GET l 0 name)
+    list(APPEND PKG_NAMES "${name}")
+  endif()
+endforeach()
 
 list(LENGTH PKG_NAMES num_pkgs)
-
 message(STATUS "Loaded ${num_pkgs} packages.")
 
+# generate hijack modules for these packages
 set(hijack_modules_dir ${BINARY_DIR}/hijack_modules)
 configure_file(${CMAKE_CURRENT_LIST_DIR}/detail/FindPackageTryConfigFirst.cmake
   ${hijack_modules_dir}/FindPackageTryConfigFirst.cmake
@@ -211,13 +220,18 @@ macro(log_error msg)
   list(APPEND failed_pkgs "${pkg_name}")
 endmacro()
 
-foreach(pkg_name IN LISTS PKG_NAMES)
-  set(pkg_args "${PKG_ARGS_${pkg_name}}")
+foreach(pkg_request IN LISTS PKG_REQUESTS)
+  list(GET pkg_request 0 pkg_name)
+  # Remove package name with this hack
+  # We could treat pkg_request as a list and remove first item but
+  # that does not preserve nested lists
+  string(REGEX REPLACE "!_BEGIN_![^;]+;" "" pkg_args "!_BEGIN_!${pkg_request}")
 
   message(STATUS "Package: ${pkg_name}:")
   message(STATUS "\t${pkg_args}")
 
-  # replace \; in pkg_cmake args to be able to parse it
+  # Replace \; in pkg_cmake args to be able to parse it
+  # First find a good substitute separator which is not used in the string
   set(sep "")
   foreach(s "!" "#" "%" "&" "," ":" "=" "@" "`" "~")
     if(NOT pkg_args MATCHES sep)
@@ -347,12 +361,9 @@ foreach(pkg_name IN LISTS PKG_NAMES)
 
   endforeach()
 
-  set(line "${pkg_name};${PKG_ARGS_${pkg_name}}")
-  file(APPEND ${pkg_requests_file} "${line}\n")
-
   # replace original GIT_TAG (if any) with current one
-  string(REGEX REPLACE ";GIT_TAG;[^;]*" "" line "${line}")
-  file(APPEND ${pkgs_out_file} "${line};GIT_TAG;${pkg_rev_parse_head}\n")
+  string(REGEX REPLACE ";GIT_TAG;[^;]*" "" pkg_resolved "${pkg_request}")
+  file(APPEND ${pkg_resolved_file} "${pkg_resolved};GIT_TAG;${pkg_rev_parse_head}\n")
 
   if(failed_pkgs)
     file(APPEND "${log_file}" "[ERROR] Failed packages: ${failed_pkgs}\n")
