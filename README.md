@@ -40,7 +40,7 @@ any CMake commands here so use this format if you want to define variables or
 add additional logic.
 
 `BINARY_DIR` is where the build directories and clones will be created.
-The packages will be installed to `INSTALL_DIR`. `BINARY_DIR` defaults
+The packages will be installed to `INSTALL_PREFIX`. `BINARY_DIR` defaults
 to the current directory.
 
 `GLOBAL_CMAKE_ARGS` is a list of cmake-options which will be passed to each
@@ -76,13 +76,14 @@ in the text file:
             [DEPENDS <dependencies...>])
 
 The first argument must be the name of the package. Let it be the same what
-you would pass to the `find_package` command because the packages will be tested
-by `find_package` command after installation.
+you would pass to the `find_package` command. The packages will be tested
+by `find_package` command after installation using the package name specified
+here.
 
 Use `GIT_REPOSITORY` or the shorter synonym `GIT_URL` to specify the URL of the
 git repository. This is also mandatory.
 
-Use `GIT_TAG` to checkout a given branch or tag or commit. For now the
+Use `GIT_TAG` to checkout a given branch or tag or commit. For now all the
 git-clones will be done with `--depth 1` to save time and storage.
 
 With `CMAKE_ARGS` you can list options to be passed to the cmake configuration
@@ -90,10 +91,18 @@ step of the package.
 
 `SOURCE_DIR` is a relative path. Use this if the package's
 `CMakeLists.txt` is in a subdirectory and not in the root of the repository.
-(Note that this one works a bit differently than in ExternalProject_Add)
+(Note that this one works a bit differently than in `ExternalProject_Add`)
 
 You can list the dependencies of the package with the `DEPENDS` option. This
 is ignored for now.
+
+#### Things You Can Do In CMake-style Package Registry Files
+
+The `cmake`-style package registry scripts will be executed in the context
+of a dummy CMake project. The project is set up the same way like an actual
+C/C++ CMake project that will build your packages. So all the options listed in
+`GLOBAL_CMAKE_ARGS` are effective (generator, toolchain, etc). You can access
+all the CMake variables (about compiler, system) and call `find_package`.
 
 #### Escaping in the Package Registry Files
 
@@ -108,7 +117,7 @@ and also in the cmake files:
 ### Build Report
 
 CentralBuilder creates various reports about the build in
-`<INSTALL_DIR>/centralbuilder_report`. These are:
+`<INSTALL_PREFIX>/centralbuilder_report`. These are:
 
 - `env.txt` lists the arguments of CentralBuilder.cmake and some information
   about the build environment
@@ -123,7 +132,6 @@ CentralBuilder creates various reports about the build in
 
 ### Further Details
 
-- Don't call `add_pkg` from within a function.
 - CentralBuilder shadows the official CMake find-modules of
   the packages you are building. For example, if you're
   building `ZLIB` and `PNG` then `PNG`'s `find_package(ZLIB)` will find the

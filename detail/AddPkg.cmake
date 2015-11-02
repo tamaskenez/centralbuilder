@@ -37,9 +37,15 @@ function(add_pkg NAME)
   if(NOT l EQUAL 1)
     message(FATAL_ERROR "'${NAME}' is an invalid name for a package")
   endif()
-  list(APPEND PKG_NAMES "${NAME}")
-  set(PKG_NAMES ${PKG_NAMES} PARENT_SCOPE)
-  # quoting ARGN is neccessary to preserve \; within list items
-  # for example CMAKE_ARGS "-DTHIS_VAR=contains\;a\;list"
-  set(PKG_ARGS_${NAME} "${ARGN}" PARENT_SCOPE)
+  if(NOT EXISTS "${CB_OUT_FILE_TO_APPEND}")
+    message(FATAL_ERROR "Internal error, the specified temporary file "
+        "CB_OUT_FILE_TO_APPEND = \"${CB_OUT_FILE_TO_APPEND}\" "
+        "does not exist")
+  endif()
+  if(IS_DIRECTORY "${CB_OUT_FILE_TO_APPEND}")
+    message(FATAL_ERROR "Internal error, the specified temporary file "
+        "CB_OUT_FILE_TO_APPEND = \"${CB_OUT_FILE_TO_APPEND}\" "
+        "is a directory")
+  endif()
+  file(APPEND "${CB_OUT_FILE_TO_APPEND}" "${NAME};${ARGN}\n")
 endfunction()
