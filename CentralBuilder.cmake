@@ -29,7 +29,6 @@ endif()
 
 include(CMakePrintHelpers)
 include(CMakeParseArguments)
-include(${CMAKE_CURRENT_LIST_DIR}/detail/AddPkg.cmake)
 
 if(NOT GLOBAL_CMAKE_ARGS)
   message(STATUS "The GLOBAL_CMAKE_ARGS variable is empty.")
@@ -126,30 +125,38 @@ if(result)
   message(FATAL_ERROR "Configuring test project failed.")
 endif()
 
-set(pkgs_request_file "${report_dir}/packages_request.txt")
-set(pkgs_out_file "${report_dir}/packages_current.txt")
-file(WRITE ${pkgs_request_file} "")
-file(WRITE ${pkgs_out_file} "")
+# We are reading the package registry file specified for this script
+# The processed requests should be appended to pkg_requests_file
+set(pkg_requests_file "${report_dir}/package_requests.txt")
+file(WRITE ${pkg_requests_file} "")
 
-function(include_cmake_package_registry filename)
+# Invokes the test project to load a *.cmake
+# package registry file and by executing it
+# append the result to a file.
+# Input: ${pkg_registry_file_in} (from parent_scope)
+# Output: ${out_file_to_append}
+function(include_cmake_package_registry pkg_registry_file_in out_file_to_append)
   execute_process(
     COMMAND ${CMAKE_COMMAND}
       ${GLOBAL_CMAKE_ARGS}
-      "-DCB_PKGS_REQUEST_FILE=${pkgs_request_file}"
-      "-DCB_PKG_REGISTRY_FILE=${filename}"
+      "-DCB_ADD_PKG_CMAKE=${CMAKE_CURRENT_LIST_DIR}/detail/AddPkg.cmake"
+      "-DCB_PKG_REGISTRY_FILE_IN=${pkg_registry_file_in}"
+      "-DCB_OUT_FILE_TO_APPEND=${out_file_to_append}"
       ${tp_source_dir}
     WORKING_DIRECTORY ${tp_binary_dir}
     RESULT_VARIABLE result
   )
 endfunction()
 
-set(PKG_NAMES "")
+
 set(tmpfile ${BINARY_DIR}/pkg_reg.tmp)
 foreach(pr IN LISTS PKG_REGISTRIES)
   if(EXISTS "${pr}")
+    # it's a local file
     message(STATUS "Loading ${pr}")
     configure_file("${pr}" "${tmpfile}" COPYONLY)
   else()
+    # then it must be a remote file to download
     message(STATUS "Downloading ${pr}")
     file(DOWNLOAD "${pr}" "${tmpfile}" STATUS result)
     list(GET result 0 code)
@@ -157,12 +164,13 @@ foreach(pr IN LISTS PKG_REGISTRIES)
       message(FATAL_ERROR "Download failed with ${result}.")
     endif()
   endif()
+  # at this point the file pointed by pr is copied to `tmpfile`
   if(pr MATCHES "\\.cmake")
-    include_cmake_package_registry("${tmpfile}")
+    include_cmake_package_registry("${tmpfile}" "${pkg_requests_file}")
   elseif(pr MATCHES "\\.txt")
     file(READ "${tmpfile}" prc)
     foreach(line IN LISTS prc)
-      add_pkg(${line})
+      file(APPEND "${pkg_requests_file}" "${line}")
     endforeach()
   else()
     message(FATAL_ERROR "The package registry files must have either '.txt' "
@@ -170,6 +178,9 @@ foreach(pr IN LISTS PKG_REGISTRIES)
   endif()
 endforeach()
 
+message(FATAL_ERROR yes)
+
+set(PKG_NAMES "")
 
 list(LENGTH PKG_NAMES num_pkgs)
 
@@ -337,7 +348,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   endforeach()
 
   set(line "${pkg_name};${PKG_ARGS_${pkg_name}}")
-  file(APPEND ${pkgs_request_file} "${line}\n")
+  file(APPEND ${pkg_requests_file} "${line}\n")
 
   # replace original GIT_TAG (if any) with current one
   string(REGEX REPLACE ";GIT_TAG;[^;]*" "" line "${line}")

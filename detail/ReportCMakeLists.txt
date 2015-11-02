@@ -87,3 +87,15 @@ if(CB_FIND_PACKAGE_REPORT_FILE)
   endforeach()
   set(CB_FIND_PACKAGE_REPORT_FILE "" CACHE INTERNAL "" FORCE)
 endif()
+
+# we include the pkg registry in a guarding function
+function(include_pkg_registry_function)
+  include("${CB_PKG_REGISTRY_FILE_IN}")
+endfunction()
+
+if(CB_PKG_REGISTRY_FILE_IN)
+  include("${CB_ADD_PKG_CMAKE}")
+  include_pkg_registry_function()
+  set(CB_PKG_REGISTRY_FILE_IN "" CACHE INTERNAL "" FORCE)
+endif()
+
