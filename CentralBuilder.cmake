@@ -50,6 +50,20 @@ if(CMAKE_VERSION VERSION_LESS 3.2)
   endmacro()
 endif()
 
+function(log_command)
+  math(EXPR argc_minus_1 "${ARGC}-1")
+  set(s "")
+  foreach(i RANGE 0 ${argc_minus_1})
+    set(a "${ARGV${i}}")
+    if(a MATCHES "[ ;]")
+      set(s "${s} \"${a}\"")
+    else()
+      set(s "${s} ${a}")
+    endif()
+  endforeach()
+  message(STATUS "[centralbuild] ${s}")
+endfunction()
+
 # Script starts here ###########################################################
 
 include(CMakePrintHelpers)
@@ -354,18 +368,48 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
     continue()
   endif()
 
+  string(REGEX REPLACE "-D;([^;]*)" "-D\\1" gca "${GLOBAL_CMAKE_ARGS}")
+  string(REGEX REPLACE "-D;([^;]*)" "-D\\1" pca "${PKG_CMAKE_ARGS}")
+
+  set(actual_cmake_args "")
+  set(actual_cmake_prefix_path "${pkg_prefix_path}")
+  set(actual_cmake_module_path "${pkg_module_path}")
+  foreach(ca IN LISTS gca pca)
+    if(ca MATCHES "^-DCMAKE_INSTALL_PREFIX=(.*)$")
+      log_error("GLOBAL_CMAKE_ARGS or CMAKE_ARGS for package \"${pkg_name}\" defines CMAKE_INSTALL_PREFIX which should not be defined at those places.")
+    elseif(ca MATCHES "^-DCMAKE_PREFIX_PATH=(.*)$")
+      set(actual_cmake_prefix_path "${CMAKE_MATCH_1};${actual_cmake_prefix_path}")
+    elseif(ca MATCHES "^-DCMAKE_MODULE_PATH=(.*)$")
+      set(actual_cmake_module_path "${CMAKE_MATCH_1};${actual_cmake_module_path}")
+    else()
+      # We need two levels of escaping here
+      # The first level needed inside actual_cmake_args which is a list on it own
+      # The second level will be consumed when actual_cmake_args will be expanded
+      # as the command-line of execute_process()
+      string(REPLACE ";" "\\\;" ca "${ca}")
+      list(APPEND actual_cmake_args "${ca}")
+    endif()
+  endforeach()
+
+  string(REPLACE ";" "\;" actual_cmake_prefix_path "${actual_cmake_prefix_path}")
+  string(REPLACE ";" "\;" actual_cmake_module_path "${actual_cmake_module_path}")
+
   foreach(config IN LISTS CONFIGS)
     # configure
     file(MAKE_DIRECTORY "${pkg_binary_dir}")
-    execute_process(
-      COMMAND ${CMAKE_COMMAND}
+    log_command(cd "${pkg_binary_dir}")
+    set(command_args
         -DCMAKE_INSTALL_PREFIX=${pkg_install_prefix}
-        "-DCMAKE_PREFIX_PATH=${pkg_prefix_path}"
-        "-DCMAKE_MODULE_PATH=${pkg_module_path}"
-        ${PKG_CMAKE_ARGS}
-        ${GLOBAL_CMAKE_ARGS}
+        "-DCMAKE_PREFIX_PATH=${actual_cmake_prefix_path}"
+        "-DCMAKE_MODULE_PATH=${actual_cmake_module_path}"
+        ${actual_cmake_args}
         -DCMAKE_BUILD_TYPE=${config}
         ${pkg_source_dir}
+    )
+    log_command(cmake ${command_args})
+    execute_process(
+      COMMAND ${CMAKE_COMMAND}
+        ${command_args}
       WORKING_DIRECTORY ${pkg_binary_dir}
       RESULT_VARIABLE result
     )
@@ -375,10 +419,12 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
     endif()
 
     # build
-    execute_process(
-      COMMAND ${CMAKE_COMMAND}
+    set(command_args
         --build ${pkg_binary_dir}
-        --config ${config}
+        --config ${config})
+    log_command(cmake ${command_args})
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} ${command_args}
       RESULT_VARIABLE result
     )
     if(result)
@@ -387,11 +433,13 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
     endif()
 
     # separate install to help debugging
-    execute_process(
-      COMMAND ${CMAKE_COMMAND}
+    set(command_args
         --build ${pkg_binary_dir}
         --config ${config}
-        --target install
+        --target install)
+    log_command(cmake ${command_args})
+    execute_process(
+      COMMAND ${CMAKE_COMMAND} ${command_args}
       RESULT_VARIABLE result
     )
     if(result)
