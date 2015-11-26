@@ -2,7 +2,8 @@
 #             [GIT_REPOSITORY|GIT_URL] <url>
 #             [CMAKE_ARGS <args..>]
 #             [SOURCE_DIR <source-dir>]
-#             [DEPENDS <dependencies...>])
+#             [DEPENDS <dependencies...>]
+#             [NEST])
 #
 # For detailed information see README.md
 #
@@ -30,6 +31,14 @@
 # DEPENDS is a list of project names, the dependencies of this package. This
 #   parameter is ignored for now.
 #
+# If NEST is specified then the package will be installed to `<prefix>/<name>`
+# instead of `<prefix>`. The config-modules of the package will be exposed in
+# `<prefix>` with the following method: For each config-module in
+# `<prefix>/<name>/<path-to-module>` a forwarding config-module will be
+# generated in `<prefix>/<path-to-module>` which includes the actual config-
+# module.
+#
+
 function(add_pkg NAME)
   # test list compatibility
   set(s ${NAME})

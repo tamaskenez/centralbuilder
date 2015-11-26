@@ -18,6 +18,29 @@
 # - INSTALL_PREFIX
 # - CONFIGS
 
+
+# Helper functions #############################################################
+
+# Replace each character in 'x' string
+# with [c] or [cC] where c is the character
+# Returns result in 'ans' variable
+function(case_insensitive_regex x)
+    string(REGEX REPLACE "." "\\0;" x "${x}")
+    string(REGEX REPLACE ";$" "" x "${x}")
+    set(ans "")
+    foreach(c IN LISTS x)
+        string(TOLOWER "${c}" c_lower)
+        string(TOUPPER "${c}" c_upper)
+        if(c_lower STREQUAL c_upper)
+            set(ans "${ans}[${c_lower}]")
+        else()
+            set(ans "${ans}[${c_lower}${c_upper}]")
+        endif()
+    endforeach()
+    set(ans "${ans}" PARENT_SCOPE)
+endfunction()
+
+# Add the `continue` macro printing a warning for older CMake's
 if(CMAKE_VERSION VERSION_LESS 3.2)
   macro(continue)
     message(FATAL_ERROR "This CMake version (${CMAKE_VERSION}) does not "
@@ -27,8 +50,13 @@ if(CMAKE_VERSION VERSION_LESS 3.2)
   endmacro()
 endif()
 
+# Script starts here ###########################################################
+
 include(CMakePrintHelpers)
 include(CMakeParseArguments)
+find_package(Git QUIET REQUIRED)
+
+# Validate and parse arguments #################################################
 
 if(NOT GLOBAL_CMAKE_ARGS)
   message(STATUS "The GLOBAL_CMAKE_ARGS variable is empty.")
@@ -73,6 +101,8 @@ if(NOT CONFIGS)
   message(FATAL_ERROR "No CONFIGS specified.")
 endif()
 
+# Report input settings ########################################################
+
 message(STATUS "Running CentralBuilder.cmake")
 message(STATUS "GLOBAL_CMAKE_ARGS: ${GLOBAL_CMAKE_ARGS}")
 message(STATUS "PKG_REGISTRIES: ${PKG_REGISTRIES}")
@@ -80,7 +110,7 @@ message(STATUS "BINARY_DIR: ${BINARY_DIR}")
 message(STATUS "INSTALL_PREFIX: ${INSTALL_PREFIX}")
 message(STATUS "CONFIGS: ${CONFIGS}")
 
-find_package(Git QUIET REQUIRED)
+# Retrieve the CentralBuilder git commit (used only for reporting) #############
 execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
   WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
   RESULT_VARIABLE result
@@ -95,6 +125,9 @@ else()
   set(cb_commit "${output}")
 endif()
 
+
+# Write out the first lines of centralbuilder_report ###########################
+
 set(report_dir "${INSTALL_PREFIX}/centralbuilder_report")
 
 string(TIMESTAMP ts)
@@ -106,6 +139,9 @@ file(WRITE "${report_dir}/env.txt"
   "PKG_REGISTRIES: ${PKG_REGISTRIES}\n"
   "CENTRALBUILDER_GIT_COMMIT: ${cb_commit}\n"
 )
+
+# Configure the test CMake project which runs with the same settings as the ####
+# the packages' CMake projects.
 
 set(tp_source_dir ${BINARY_DIR}/centralbuilder-testproject)
 set(tp_binary_dir ${tp_source_dir}/b)
@@ -245,7 +281,7 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
   endif()
   string(REPLACE "\;" "${sep}" pkg_args "${pkg_args}")
 
-  set(options "")
+  set(options "NEST")
   set(oneValueArgs GIT_REPOSITORY GIT_URL GIT_TAG SOURCE_DIR)
   set(multiValueArgs DEPENDS CMAKE_ARGS)
   cmake_parse_arguments(PKG "${options}" "${oneValueArgs}"
@@ -271,7 +307,11 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
 
   set(pkg_clone_dir "${BINARY_DIR}/clone/${pkg_name}")
   set(pkg_binary_dir "${BINARY_DIR}/build/${pkg_name}")
-  set(pkg_install_prefix "${INSTALL_PREFIX}")
+  if(PKG_NEST)
+    set(pkg_install_prefix "${INSTALL_PREFIX}/${pkg_name}")
+  else()
+    set(pkg_install_prefix "${INSTALL_PREFIX}")
+  endif()
   set(pkg_prefix_path "${INSTALL_PREFIX}")
   set(pkg_module_path "${hijack_modules_dir}")
   set(pkg_source_dir "${pkg_clone_dir}")
@@ -360,6 +400,49 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
     endif()
 
   endforeach()
+
+  if(PKG_NEST)
+    # expose the config modules in ${INSTALL_PREFIX}/${pkg_name}
+    # by creating config modules in ${INSTALL_PREFIX} which
+    # contains a single "include()" line which loads the config module
+    # from ${INSTALL_PREFIX}/${pkg_name}/...
+
+    # collect all potential config-modules
+    file(GLOB_RECURSE fns
+      "${pkg_install_prefix}/*-config.cmake"
+      "${pkg_install_prefix}/*Config.cmake"
+      )
+
+    foreach(fp IN LISTS fns)
+      file(RELATIVE_PATH fprel "${pkg_install_prefix}" "${fp}")
+      get_filename_component(fn "${fp}" NAME)
+      string(REGEX MATCH "^(.*)(Config|-config)[.]cmake$" _ "${fn}")
+      set(pn "${CMAKE_MATCH_1}") # package name, may be different from pkg_name
+      get_filename_component(fprel_dir "${fprel}" PATH)
+      case_insensitive_regex("${pn}")
+      set(name_dot_regex "${ans}[^/]*")
+      if(
+        # <prefix>/
+        fprel_dir STREQUAL ""
+        # <prefix>/(cmake|CMake)/
+        OR fprel_dir MATCHES "^(cmake|CMake)$"
+        # <prefix>/<name>*/ and <prefix>/<name>*/(cmake|CMake)/
+        OR fprel_dir MATCHES "^${name_dot_regex}(/(cmake|CMake))?$"
+        # <prefix>/(lib/<arch>|lib|share)/cmake/<name>*/
+        OR fprel_dir MATCHES "^(lib(/[^/]+)?|share)/cmake/${name_dot_regex}$"
+        # <prefix>/(lib/<arch>|lib|share)/<name>*/
+        OR fprel_dir MATCHES "^(lib(/[^/]+)?|share)/${name_dot_regex}$"
+        # <prefix>/(lib/<arch>|lib|share)/<name>*/(cmake|CMake)/
+        OR fprel_dir MATCHES "^(lib(/[^/]+)?|share)/${name_dot_regex}/(cmake|CMake)$"
+      )
+        set(forwarding_cm_path "${INSTALL_PREFIX}/${fprel}")
+        get_filename_component(forwarding_cm_path_dir "${forwarding_cm_path}" PATH)
+        file(RELATIVE_PATH forwarding_dir_to_cm "${forwarding_cm_path_dir}" "${fp}")
+        file(WRITE "${forwarding_cm_path}"
+          "include(\"\${CMAKE_CURRENT_LIST_DIR}/${forwarding_dir_to_cm}\")")
+      endif()
+    endforeach()
+  endif()
 
   # replace original GIT_TAG (if any) with current one
   string(REGEX REPLACE ";GIT_TAG;[^;]*" "" pkg_resolved "${pkg_request}")
