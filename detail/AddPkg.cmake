@@ -1,5 +1,6 @@
 #     add_pkg(<name>
 #             [GIT_REPOSITORY|GIT_URL] <url>
+#             [GIT_TAG <branch/tag/commit]
 #             [CMAKE_ARGS <args..>]
 #             [SOURCE_DIR <source-dir>]
 #             [DEPENDS <dependencies...>]
@@ -15,6 +16,8 @@
 #
 # GIT_REPOSITORY which can be shortened to GIT_URL specifies the git
 #   repository's URL. This is the only mandatory parameter.
+#
+# The optional GIT_TAG is followed by a branch name, tag or SHA.
 #
 # CMAKE_ARGS is a list of options that will be passed to the `cmake` command
 #   when the package's project will be configured.
