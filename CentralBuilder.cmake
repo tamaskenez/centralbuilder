@@ -245,7 +245,7 @@ list(LENGTH PKG_NAMES num_pkgs)
 message(STATUS "Loaded ${num_pkgs} packages.")
 
 # generate hijack modules for these packages
-set(hijack_modules_dir ${BINARY_DIR}/hijack_modules)
+set(hijack_modules_dir "${INSTALL_PREFIX}/centralbuilder_hijack_modules")
 configure_file(${CMAKE_CURRENT_LIST_DIR}/detail/FindPackageTryConfigFirst.cmake
   ${hijack_modules_dir}/FindPackageTryConfigFirst.cmake
   COPYONLY)
