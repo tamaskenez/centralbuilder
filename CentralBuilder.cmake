@@ -421,7 +421,8 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
     # build
     set(command_args
         --build ${pkg_binary_dir}
-        --config ${config})
+          --config ${config}
+          --clean-first)
     log_command(cmake ${command_args})
     execute_process(
       COMMAND ${CMAKE_COMMAND} ${command_args}
