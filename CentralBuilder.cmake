@@ -45,8 +45,8 @@ if(CMAKE_VERSION VERSION_LESS 3.2)
   macro(continue)
     message(FATAL_ERROR "This CMake version (${CMAKE_VERSION}) does not "
       "support the `continue` command. Processing will be aborted at the first "
-      "error. Please check the file `${INSTALL_PREFIX}/centralbuilder_report"
-      "/log.txt`.")
+      "error. Please check the file `${INSTALL_PREFIX}/centralbuilder"
+      "/build_log.txt`.")
   endmacro()
 endif()
 
@@ -142,7 +142,7 @@ endif()
 
 # Write out the first lines of centralbuilder_report ###########################
 
-set(report_dir "${INSTALL_PREFIX}/centralbuilder_report")
+set(report_dir "${INSTALL_PREFIX}/centralbuilder")
 
 string(TIMESTAMP ts)
 string(TIMESTAMP ts_utc UTC)
@@ -257,7 +257,7 @@ foreach(pkg_name IN LISTS PKG_NAMES)
   endif()
 endforeach()
 
-set(log_file "${report_dir}/log.txt")
+set(log_file "${report_dir}/build_log.txt")
 set(failed_pkgs "")
 set(config "")
 file(WRITE "${log_file}" "")
@@ -505,7 +505,7 @@ endforeach()
 execute_process(
   COMMAND ${CMAKE_COMMAND}
     ${GLOBAL_CMAKE_ARGS}
-    "-DCB_FIND_PACKAGE_REPORT_FILE=${report_dir}/find_packages.txt"
+    "-DCB_FIND_PACKAGE_REPORT_FILE=${report_dir}/find_package_report.txt"
     "-DPKG_NAMES=${PKG_NAMES}"
     "-DCMAKE_PREFIX_PATH=${pkg_prefix_path}"
     "-DCMAKE_MODULE_PATH=${pkg_module_path}"
@@ -519,10 +519,10 @@ endif()
 
 if(failed_pkgs)
   message(FATAL_ERROR "Build done with errors. See ${report_dir} for more "
-    "information. ${report_dir}/log.txt contains the log of errors and list "
+    "information. ${report_dir}/build_log.txt contains the log of errors and list "
     "of failed packages.")
 else()
   message(STATUS "Successful build. See ${report_dir} for more "
-    "information. ${report_dir}/find_packages.txt contains the log of test "
+    "information. ${report_dir}/find_package_report.txt contains the log of test "
     "find_package commands for each package.")
 endif()
