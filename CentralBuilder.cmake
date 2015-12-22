@@ -200,6 +200,13 @@ function(include_cmake_package_registry pkg_registry_file_in out_file_to_append)
   )
 endfunction()
 
+# sort+unique a list which may contain nested lists
+macro(list_sort_unique_keep_nested_lists listname)
+    string(REPLACE "\;" "\t" ${listname} "${${listname}}")
+    list(SORT ${listname})
+    list(REMOVE_DUPLICATES ${listname})
+    string(REPLACE "\t" "\;" ${listname} "${${listname}}")
+endmacro()
 
 set(tmpfile ${BINARY_DIR}/pkg_reg.tmp)
 foreach(pr IN LISTS PKG_REGISTRIES)
@@ -395,59 +402,85 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
   string(REPLACE ";" "\;" actual_cmake_module_path "${actual_cmake_module_path}")
 
   foreach(config IN LISTS CONFIGS)
-    # configure
-    file(MAKE_DIRECTORY "${pkg_binary_dir}")
-    log_command(cd "${pkg_binary_dir}")
-    set(command_args
-        -DCMAKE_INSTALL_PREFIX=${pkg_install_prefix}
-        "-DCMAKE_PREFIX_PATH=${actual_cmake_prefix_path}"
-        "-DCMAKE_MODULE_PATH=${actual_cmake_module_path}"
-        ${actual_cmake_args}
-        -DCMAKE_BUILD_TYPE=${config}
-        ${pkg_source_dir}
-    )
-    log_command(cmake ${command_args})
-    execute_process(
-      COMMAND ${CMAKE_COMMAND}
-        ${command_args}
-      WORKING_DIRECTORY ${pkg_binary_dir}
-      RESULT_VARIABLE result
-    )
-    if(result)
-      log_error("configure failed.")
-      continue()
+    # current args_for_stamp
+    set(args_for_stamp "${actual_cmake_args};SHA=${pkg_rev_parse_head}")
+    # make canonical arg list
+    string(REGEX REPLACE "(^|;)-([CDUGTA]);" "\\1-\\2" args_for_stamp "${args_for_stamp}")
+    list_sort_unique_keep_nested_lists(args_for_stamp)
+    set(stamp_filename "${report_dir}/stamps/${pkg_name}-${config}-installed.txt")
+
+    # compare to existing stamp file
+    set(same_args_as_already_installed 0)
+    if(EXISTS "${stamp_filename}")
+      file(READ "${stamp_filename}" installed_stamp_content)
+      if(installed_stamp_content STREQUAL args_for_stamp)
+        set(same_args_as_already_installed 1)
+      endif()
     endif()
 
-    # build
-    set(command_args
-        --build ${pkg_binary_dir}
+    # this `if` would be more readable with `continue`
+    # but older CMake has no `continue`
+    if(same_args_as_already_installed)
+      message(STATUS "${pkg_name}-${config} has already been installed with "
+        "the same CMAKE_ARGS and SHA, skipping build. Stamp content: "
+        "${args_for_stamp}")
+    else()
+      # configure
+      file(MAKE_DIRECTORY "${pkg_binary_dir}")
+      log_command(cd "${pkg_binary_dir}")
+      set(command_args
+          -DCMAKE_INSTALL_PREFIX=${pkg_install_prefix}
+          "-DCMAKE_PREFIX_PATH=${actual_cmake_prefix_path}"
+          "-DCMAKE_MODULE_PATH=${actual_cmake_module_path}"
+          ${actual_cmake_args}
+          -DCMAKE_BUILD_TYPE=${config}
+          ${pkg_source_dir}
+      )
+      log_command(cmake ${command_args})
+      execute_process(
+        COMMAND ${CMAKE_COMMAND}
+          ${command_args}
+        WORKING_DIRECTORY ${pkg_binary_dir}
+        RESULT_VARIABLE result
+      )
+      if(result)
+        log_error("configure failed.")
+        continue()
+      endif()
+
+      # build
+      set(command_args
+          --build ${pkg_binary_dir}
           --config ${config}
           --clean-first)
-    log_command(cmake ${command_args})
-    execute_process(
-      COMMAND ${CMAKE_COMMAND} ${command_args}
-      RESULT_VARIABLE result
-    )
-    if(result)
-      log_error("build failed.")
-      continue()
-    endif()
+      log_command(cmake ${command_args})
+      execute_process(
+        COMMAND ${CMAKE_COMMAND} ${command_args}
+        RESULT_VARIABLE result
+      )
+      if(result)
+        log_error("build failed.")
+        continue()
+      endif()
 
-    # separate install to help debugging
-    set(command_args
-        --build ${pkg_binary_dir}
-        --config ${config}
-        --target install)
-    log_command(cmake ${command_args})
-    execute_process(
-      COMMAND ${CMAKE_COMMAND} ${command_args}
-      RESULT_VARIABLE result
-    )
-    if(result)
-      log_error("install failed.")
-      continue()
-    endif()
+      # separate install to help debugging
+      set(command_args
+          --build ${pkg_binary_dir}
+          --config ${config}
+          --target install)
+      log_command(cmake ${command_args})
+      execute_process(
+        COMMAND ${CMAKE_COMMAND} ${command_args}
+        RESULT_VARIABLE result
+      )
+      if(result)
+        log_error("install failed.")
+        continue()
+      endif()
 
+      # successful install, write out install stamp
+      file(WRITE "${stamp_filename}" "${args_for_stamp}")
+    endif() # if NOT same args as already installed
   endforeach()
 
   if(PKG_NEST)
