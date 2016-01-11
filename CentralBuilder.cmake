@@ -281,6 +281,7 @@ endmacro()
 set(packages_built_now "")
 # list of packages we've failed to built in the loop
 set(packages_failed_to_build_now "")
+set(package_names_processed "")
 
 foreach(pkg_request IN LISTS PKG_REQUESTS)
   list(GET pkg_request 0 pkg_name)
@@ -292,6 +293,7 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
   message(STATUS "Package: ${pkg_name}:")
   message(STATUS "\t${pkg_args}")
 
+  list(APPEND package_names_processed "${pkg_name}")
   # we'll remove this after successful build or
   # if we find out that this package does not need to
   # be rebuilt
@@ -435,19 +437,28 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
 
       set(fail_this_build_reason "")
       foreach(d IN LISTS PKG_DEPENDS)
-        # fail build if a dependency failed to build now
-        if(";${packages_failed_to_build_now};" MATCHES ";${d};")
-          set(fail_this_build_reason "dependency '${d}' failed.")
-          break()
-        endif()
-        if(same_args_as_already_installed)
-          # Force rebuild if a dependency of this has been built
-          # after this package.
-          set(dep_stamp_filename "${report_dir}/stamps/${d}-${config}-installed.txt")
-          if("${dep_stamp_filename}" IS_NEWER_THAN "${stamp_filename}")
-            set(same_args_as_already_installed 0)
-            message(STATUS "Rebuilding '${pkg_name}' because '${d}' is newer.")
+        if(";${package_names_processed};" MATCHES ";${d};")
+          # fail build if a dependency failed to build now
+          if(";${packages_failed_to_build_now};" MATCHES ";${d};")
+            set(fail_this_build_reason "dependency '${d}' failed.")
+            break()
           endif()
+          if(same_args_as_already_installed)
+            # Force rebuild if a dependency of this has been built
+            # after this package.
+            set(dep_stamp_filename "${report_dir}/stamps/${d}-${config}-installed.txt")
+            if(EXISTS "${dep_stamp_filename}")
+              if("${dep_stamp_filename}" IS_NEWER_THAN "${stamp_filename}")
+                set(same_args_as_already_installed 0)
+                message(STATUS "Rebuilding '${pkg_name}' because '${d}' is newer.")
+              endif()
+            else()
+              set(fail_this_build_reason "install-timestamp of dependency '${d}' not found")
+              break()
+            endif()
+          endif()
+        else()
+          message(STATUS "Dependency ${d} is not specified in the current package registries.")
         endif()
       endforeach()
 
