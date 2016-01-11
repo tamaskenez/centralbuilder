@@ -277,6 +277,11 @@ macro(log_error msg)
   list(APPEND failed_pkgs "${pkg_name}")
 endmacro()
 
+# list of packages we've built so far in the loop
+set(packages_built_now "")
+# list of packages we've failed to built in the loop
+set(packages_failed_to_build_now "")
+
 foreach(pkg_request IN LISTS PKG_REQUESTS)
   list(GET pkg_request 0 pkg_name)
   # Remove package name with this hack
@@ -286,6 +291,11 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
 
   message(STATUS "Package: ${pkg_name}:")
   message(STATUS "\t${pkg_args}")
+
+  # we'll remove this after successful build or
+  # if we find out that this package does not need to
+  # be rebuilt
+  list(APPEND packages_failed_to_build_now "${pkg_name}")
 
   # Replace \; in pkg_cmake args to be able to parse it
   # First find a good substitute separator which is not used in the string
@@ -418,6 +428,29 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       endif()
     endif()
 
+    set(fail_this_build_reason "")
+    foreach(d IN LISTS PKG_DEPENDS)
+      # fail build if a dependency failed to build now
+      if(";${packages_failed_to_build_now};" MATCHES ";${d};")
+        set(fail_this_build_reason "dependency '${d}' failed.")
+        break()
+      endif()
+      if(same_args_as_already_installed)
+        # Force rebuild if a dependency of this has been built
+        # after this package.
+        set(dep_stamp_filename "${report_dir}/stamps/${d}-${config}-installed.txt")
+        if("${dep_stamp_filename}" IS_NEWER_THAN "${stamp_filename}")
+          set(same_args_as_already_installed 0)
+          message(STATUS "Rebuilding '${pkg_name}' because '${d}' is newer.")
+        endif()
+      endif()
+    endforeach()
+
+    if(fail_this_build_reason)
+      log_error("${fail_this_build_reason}")
+      continue()
+    endif()
+
     # this `if` would be more readable with `continue`
     # but older CMake has no `continue`
     if(same_args_as_already_installed)
@@ -480,61 +513,65 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
 
       # successful install, write out install stamp
       file(WRITE "${stamp_filename}" "${args_for_stamp}")
+
+      # packages_built_now will contain one pkg_name multiple times
+      # (one for each config) but that's fine
+      list(APPEND packages_built_now "${pkg_name}")
     endif() # if NOT same args as already installed
   endforeach()
-
-  if(PKG_NEST)
-    # expose the config modules in ${INSTALL_PREFIX}/${pkg_name}
-    # by creating config modules in ${INSTALL_PREFIX} which
-    # contains a single "include()" line which loads the config module
-    # from ${INSTALL_PREFIX}/${pkg_name}/...
-
-    # collect all potential config-modules
-    file(GLOB_RECURSE fns
-      "${pkg_install_prefix}/*-config.cmake"
-      "${pkg_install_prefix}/*Config.cmake"
-      )
-
-    foreach(fp IN LISTS fns)
-      file(RELATIVE_PATH fprel "${pkg_install_prefix}" "${fp}")
-      get_filename_component(fn "${fp}" NAME)
-      string(REGEX MATCH "^(.*)(Config|-config)[.]cmake$" _ "${fn}")
-      set(pn "${CMAKE_MATCH_1}") # package name, may be different from pkg_name
-      get_filename_component(fprel_dir "${fprel}" PATH)
-      case_insensitive_regex("${pn}")
-      set(name_dot_regex "${ans}[^/]*")
-      if(
-        # <prefix>/
-        fprel_dir STREQUAL ""
-        # <prefix>/(cmake|CMake)/
-        OR fprel_dir MATCHES "^(cmake|CMake)$"
-        # <prefix>/<name>*/ and <prefix>/<name>*/(cmake|CMake)/
-        OR fprel_dir MATCHES "^${name_dot_regex}(/(cmake|CMake))?$"
-        # <prefix>/(lib/<arch>|lib|share)/cmake/<name>*/
-        OR fprel_dir MATCHES "^(lib(/[^/]+)?|share)/cmake/${name_dot_regex}$"
-        # <prefix>/(lib/<arch>|lib|share)/<name>*/
-        OR fprel_dir MATCHES "^(lib(/[^/]+)?|share)/${name_dot_regex}$"
-        # <prefix>/(lib/<arch>|lib|share)/<name>*/(cmake|CMake)/
-        OR fprel_dir MATCHES "^(lib(/[^/]+)?|share)/${name_dot_regex}/(cmake|CMake)$"
-      )
-        set(forwarding_cm_path "${INSTALL_PREFIX}/${fprel}")
-        get_filename_component(forwarding_cm_path_dir "${forwarding_cm_path}" PATH)
-        file(RELATIVE_PATH forwarding_dir_to_cm "${forwarding_cm_path_dir}" "${fp}")
-        file(WRITE "${forwarding_cm_path}"
-          "include(\"\${CMAKE_CURRENT_LIST_DIR}/${forwarding_dir_to_cm}\")")
-      endif()
-    endforeach()
-  endif()
 
   # replace original GIT_TAG (if any) with current one
   string(REGEX REPLACE ";GIT_TAG;[^;]*" "" pkg_resolved "${pkg_request}")
   file(APPEND ${pkg_resolved_file} "${pkg_resolved};GIT_TAG;${pkg_rev_parse_head}\n")
 
-  if(failed_pkgs)
-    file(APPEND "${log_file}" "[ERROR] Failed packages: ${failed_pkgs}\n")
-  endif()
+  if(";${failed_pkgs};" MATCHES ";${pkg_name};")
+    file(APPEND "${log_file}" "[ERROR] Failed package: ${pkg_name}\n")
+  else()
+    list(REMOVE_ITEM packages_failed_to_build_now "${pkg_name}")
+    if(PKG_NEST AND ";${packages_built_now};" MATCHES ";${pkg_name};")
+      # expose the config modules in ${INSTALL_PREFIX}/${pkg_name}
+      # by creating config modules in ${INSTALL_PREFIX} which
+      # contains a single "include()" line which loads the config module
+      # from ${INSTALL_PREFIX}/${pkg_name}/...
 
-endforeach()
+      # collect all potential config-modules
+      file(GLOB_RECURSE fns
+        "${pkg_install_prefix}/*-config.cmake"
+        "${pkg_install_prefix}/*Config.cmake"
+        )
+
+      foreach(fp IN LISTS fns)
+        file(RELATIVE_PATH fprel "${pkg_install_prefix}" "${fp}")
+        get_filename_component(fn "${fp}" NAME)
+        string(REGEX MATCH "^(.*)(Config|-config)[.]cmake$" _ "${fn}")
+        set(pn "${CMAKE_MATCH_1}") # package name, may be different from pkg_name
+        get_filename_component(fprel_dir "${fprel}" PATH)
+        case_insensitive_regex("${pn}")
+        set(name_dot_regex "${ans}[^/]*")
+        if(
+          # <prefix>/
+          fprel_dir STREQUAL ""
+          # <prefix>/(cmake|CMake)/
+          OR fprel_dir MATCHES "^(cmake|CMake)$"
+          # <prefix>/<name>*/ and <prefix>/<name>*/(cmake|CMake)/
+          OR fprel_dir MATCHES "^${name_dot_regex}(/(cmake|CMake))?$"
+          # <prefix>/(lib/<arch>|lib|share)/cmake/<name>*/
+          OR fprel_dir MATCHES "^(lib(/[^/]+)?|share)/cmake/${name_dot_regex}$"
+          # <prefix>/(lib/<arch>|lib|share)/<name>*/
+          OR fprel_dir MATCHES "^(lib(/[^/]+)?|share)/${name_dot_regex}$"
+          # <prefix>/(lib/<arch>|lib|share)/<name>*/(cmake|CMake)/
+          OR fprel_dir MATCHES "^(lib(/[^/]+)?|share)/${name_dot_regex}/(cmake|CMake)$"
+        )
+          set(forwarding_cm_path "${INSTALL_PREFIX}/${fprel}")
+          get_filename_component(forwarding_cm_path_dir "${forwarding_cm_path}" PATH)
+          file(RELATIVE_PATH forwarding_dir_to_cm "${forwarding_cm_path_dir}" "${fp}")
+          file(WRITE "${forwarding_cm_path}"
+            "include(\"\${CMAKE_CURRENT_LIST_DIR}/${forwarding_dir_to_cm}\")")
+        endif() # if match found
+      endforeach() # for each config module
+    endif() # if NEST
+  endif() # else of if pkg failed
+endforeach() # for each pkg
 
 execute_process(
   COMMAND ${CMAKE_COMMAND}
