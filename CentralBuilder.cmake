@@ -490,7 +490,7 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
           break()
         endif()
 
-        set(pgk_cloned 1)
+        set(pkg_cloned 1)
         # loop executes once more and re-evalutes the variables
         # that depend on pkg_rev_parse_head
       endif()
