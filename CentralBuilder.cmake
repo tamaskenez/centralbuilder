@@ -356,35 +356,6 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
 
   string(REPLACE "${sep}" "\;" PKG_CMAKE_ARGS "${PKG_CMAKE_ARGS}")
 
-  # clone if there's no git in the clone dir
-  if(NOT EXISTS "${pkg_clone_dir}/.git")
-    set(branch_option "")
-    if(PKG_GIT_TAG)
-      set(branch_option --branch ${PKG_GIT_TAG})
-    endif()
-    execute_process(
-      COMMAND ${GIT_EXECUTABLE} clone --depth 1 --recursive ${branch_option}
-        ${PKG_GIT_URL} ${pkg_clone_dir}
-      RESULT_VARIABLE result
-    )
-    if(result)
-      log_error("git clone failed.")
-      continue()
-    endif()
-  endif()
-
-  # determine the actual commit
-  execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
-    WORKING_DIRECTORY ${pkg_clone_dir}
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE pkg_rev_parse_head
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
-  if(result)
-    log_error("git rev-parse HEAD failed")
-    continue()
-  endif()
-
   string(REGEX REPLACE "-D;([^;]*)" "-D\\1" gca "${GLOBAL_CMAKE_ARGS}")
   string(REGEX REPLACE "-D;([^;]*)" "-D\\1" pca "${PKG_CMAKE_ARGS}")
 
@@ -411,43 +382,122 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
   string(REPLACE ";" "\;" actual_cmake_prefix_path "${actual_cmake_prefix_path}")
   string(REPLACE ";" "\;" actual_cmake_module_path "${actual_cmake_module_path}")
 
+  # determine the actual commit without cloning
+  if(PKG_GIT_TAG)
+    set(ref "${PKG_GIT_TAG}")
+  else()
+    set(ref "HEAD")
+  endif()
+  execute_process(COMMAND ${GIT_EXECUTABLE}
+      ls-remote --exit-code "${PKG_GIT_URL}" "${ref}"
+    RESULT_VARIABLE result
+    OUTPUT_VARIABLE ls_remote_output
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
+  if(result)
+    log_error("'git ls-remote ${PKG_GIT_URL} ${ref}' failed")
+    continue()
+  endif()
+
+  string(REGEX MATCH "[0-9a-fA-F]+" pkg_rev_parse_head "${ls_remote_output}")
+  if(NOT pkg_rev_parse_head)
+    log_error("Failed to parse result of 'git ls-remote ${PKG_GIT_URL} ${ref}' which was '${ls_remote_output}'")
+    continue()
+  endif()
+
+  message(STATUS "${pkg_name}: git ls-remote ${ref} returned ${pkg_rev_parse_head}")
+
   foreach(config IN LISTS CONFIGS)
-    # current args_for_stamp
-    set(args_for_stamp "${actual_cmake_args};SHA=${pkg_rev_parse_head}")
-    # make canonical arg list
-    string(REGEX REPLACE "(^|;)-([CDUGTA]);" "\\1-\\2" args_for_stamp "${args_for_stamp}")
-    list_sort_unique_keep_nested_lists(args_for_stamp)
-    set(stamp_filename "${report_dir}/stamps/${pkg_name}-${config}-installed.txt")
 
-    # compare to existing stamp file
-    set(same_args_as_already_installed 0)
-    if(EXISTS "${stamp_filename}")
-      file(READ "${stamp_filename}" installed_stamp_content)
-      if(installed_stamp_content STREQUAL args_for_stamp)
-        set(same_args_as_already_installed 1)
-      endif()
-    endif()
+    # The next section in the while() will be executed first without actually
+    # having cloned out the repository.
+    # If it turns out that the repository is going to be built
+    # we clone the repo and re-run this section because the
+    # repository may have changed in the meantime so the current SHA
+    # must be evaluated again.
+    set(pkg_cloned 0)
+    while(1)
+      # current args_for_stamp
+      set(args_for_stamp "${actual_cmake_args};SHA=${pkg_rev_parse_head}")
+      # make canonical arg list
+      string(REGEX REPLACE "(^|;)-([CDUGTA]);" "\\1-\\2" args_for_stamp "${args_for_stamp}")
+      list_sort_unique_keep_nested_lists(args_for_stamp)
+      set(stamp_filename "${report_dir}/stamps/${pkg_name}-${config}-installed.txt")
 
-    set(fail_this_build_reason "")
-    foreach(d IN LISTS PKG_DEPENDS)
-      # fail build if a dependency failed to build now
-      if(";${packages_failed_to_build_now};" MATCHES ";${d};")
-        set(fail_this_build_reason "dependency '${d}' failed.")
-        break()
-      endif()
-      if(same_args_as_already_installed)
-        # Force rebuild if a dependency of this has been built
-        # after this package.
-        set(dep_stamp_filename "${report_dir}/stamps/${d}-${config}-installed.txt")
-        if("${dep_stamp_filename}" IS_NEWER_THAN "${stamp_filename}")
-          set(same_args_as_already_installed 0)
-          message(STATUS "Rebuilding '${pkg_name}' because '${d}' is newer.")
+      # compare to existing stamp file
+      set(same_args_as_already_installed 0)
+      if(EXISTS "${stamp_filename}")
+        file(READ "${stamp_filename}" installed_stamp_content)
+        if(installed_stamp_content STREQUAL args_for_stamp)
+          set(same_args_as_already_installed 1)
         endif()
       endif()
-    endforeach()
 
-    if(fail_this_build_reason)
-      log_error("${fail_this_build_reason}")
+      set(fail_this_build_reason "")
+      foreach(d IN LISTS PKG_DEPENDS)
+        # fail build if a dependency failed to build now
+        if(";${packages_failed_to_build_now};" MATCHES ";${d};")
+          set(fail_this_build_reason "dependency '${d}' failed.")
+          break()
+        endif()
+        if(same_args_as_already_installed)
+          # Force rebuild if a dependency of this has been built
+          # after this package.
+          set(dep_stamp_filename "${report_dir}/stamps/${d}-${config}-installed.txt")
+          if("${dep_stamp_filename}" IS_NEWER_THAN "${stamp_filename}")
+            set(same_args_as_already_installed 0)
+            message(STATUS "Rebuilding '${pkg_name}' because '${d}' is newer.")
+          endif()
+        endif()
+      endforeach()
+
+      if(fail_this_build_reason)
+        log_error("${fail_this_build_reason}")
+        continue()
+      endif()
+
+      set(log_error_result "")
+
+      if(same_args_as_already_installed OR pkg_cloned)
+        break() # nothing to do
+      else()
+        # clone if there's no git in the clone dir
+        if(NOT EXISTS "${pkg_clone_dir}/.git")
+          set(branch_option "")
+          if(PKG_GIT_TAG)
+            set(branch_option --branch ${PKG_GIT_TAG})
+          endif()
+          execute_process(
+            COMMAND ${GIT_EXECUTABLE} clone --depth 1 --recursive ${branch_option}
+              ${PKG_GIT_URL} ${pkg_clone_dir}
+            RESULT_VARIABLE result
+          )
+          if(result)
+            set(log_error_result "git clone failed.")
+            break()
+          endif()
+        endif()
+
+        # determine the actual commit
+        execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+          WORKING_DIRECTORY ${pkg_clone_dir}
+          RESULT_VARIABLE result
+          OUTPUT_VARIABLE pkg_rev_parse_head
+          OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        if(result)
+          set(log_error_result "git rev-parse HEAD failed")
+          break()
+        endif()
+
+        set(pgk_cloned 1)
+        # loop executes once more and re-evalutes the variables
+        # that depend on pkg_rev_parse_head
+      endif()
+    endwhile() # while(1)
+
+    if(log_error_result)
+      log_error("${log_error_result}")
       continue()
     endif()
 
