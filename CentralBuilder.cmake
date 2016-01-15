@@ -434,7 +434,11 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
     # repository may have changed in the meantime so the current SHA
     # must be evaluated again.
     set(pkg_cloned 0)
-    while(1)
+    foreach(lazy_clone_phase 1 2 3)
+      if(lazy_clone_phase EQUAL 3)
+        set(log_error_result "Internal error: lazy-clone loop executed three times.")
+        break()
+      endif()
       # current args_for_stamp
       set(args_for_stamp "${actual_cmake_args};SHA=${pkg_rev_parse_head}")
       # make canonical arg list
@@ -483,11 +487,11 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       endforeach()
 
       if(fail_this_build_reason)
-        log_error("${fail_this_build_reason}")
-        continue()
+        set(log_error_result "${fail_this_build_reason}")
+        break()
+      else()
+        set(log_error_result "")
       endif()
-
-      set(log_error_result "")
 
       if(same_args_as_already_installed OR pkg_cloned)
         break() # nothing to do
@@ -525,7 +529,7 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
         # loop executes once more and re-evalutes the variables
         # that depend on pkg_rev_parse_head
       endif()
-    endwhile() # while(1)
+    endforeach() # foreach(lazy_clone_phase)
 
     if(log_error_result)
       log_error("${log_error_result}")
