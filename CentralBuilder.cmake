@@ -390,12 +390,28 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
   else()
     set(ref "HEAD")
   endif()
-  execute_process(COMMAND ${GIT_EXECUTABLE}
-      ls-remote --exit-code "${PKG_GIT_URL}" "${ref}"
-    RESULT_VARIABLE result
-    OUTPUT_VARIABLE ls_remote_output
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-  )
+
+  set(result "")
+  foreach(retries 1 2 3 4 5)
+    if(result)
+      message(STATUS "'git ls-remote ${PKG_GIT_URL} ${ref}' failed")
+      math(EXPR sleep_sec "${retries}")
+      message(STATUS "Sleeping ${sleep_sec} secs and retrying...")
+      execute_process(COMMAND ${CMAKE_COMMAND}
+        -E sleep ${sleep_sec})
+    endif()
+
+    execute_process(COMMAND ${GIT_EXECUTABLE}
+        ls-remote --exit-code "${PKG_GIT_URL}" "${ref}"
+      RESULT_VARIABLE result
+      OUTPUT_VARIABLE ls_remote_output
+      OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(NOT result)
+      break()
+    endif()
+  endforeach()
+
   if(result)
     log_error("'git ls-remote ${PKG_GIT_URL} ${ref}' failed")
     continue()
