@@ -543,6 +543,13 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
         "the same CMAKE_ARGS and SHA, skipping build. Stamp content: "
         "${args_for_stamp}")
     else()
+      if(installed_stamp_content)
+        message(STATUS "Previous build pars: ${installed_stamp_content}")
+        message(STATUS "Current build pars: ${args_for_stamp}")
+        message(STATUS "Pars are different, rebuilding")
+      else()
+        message(STATUS "There is no previous build, building now for the first time.")
+      endif()
       # configure
       file(MAKE_DIRECTORY "${pkg_binary_dir}")
       log_command(cd "${pkg_binary_dir}")
