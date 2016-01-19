@@ -347,6 +347,7 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
   else()
     set(pkg_install_prefix "${INSTALL_PREFIX}")
   endif()
+  set(PACKAGE_INSTALL_PREFIX_${pkg_name} "${pkg_install_prefix}")
   set(pkg_prefix_path "${INSTALL_PREFIX}")
   set(pkg_module_path "${hijack_modules_dir}")
   set(pkg_source_dir "${pkg_clone_dir}")
@@ -458,12 +459,16 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       endif()
 
       set(fail_this_build_reason "")
+      set(deps_install_prefixes "")
       foreach(d IN LISTS PKG_DEPENDS)
         if(";${package_names_processed};" MATCHES ";${d};")
           # fail build if a dependency failed to build now
           if(";${packages_failed_to_build_now};" MATCHES ";${d};")
             set(fail_this_build_reason "dependency '${d}' failed.")
             break()
+          endif()
+          if(PACKAGE_INSTALL_PREFIX_${d} AND NOT pkg_install_prefix STREQUAL PACKAGE_INSTALL_PREFIX_${d})
+            list(APPEND deps_install_prefixes "${PACKAGE_INSTALL_PREFIX_${d}}")
           endif()
           if(same_args_as_already_installed)
             # Force rebuild if a dependency of this has been built
@@ -487,6 +492,25 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
           message(STATUS "Dependency ${d} is not specified in the current package registries.")
         endif()
       endforeach()
+
+      list(REMOVE_DUPLICATES deps_install_prefixes)
+      if(deps_install_prefixes)
+        message(STATUS "This package needs may need to access libraries from "
+          "the following additional install prefixes:")
+        cmake_print_variables(deps_install_prefixes)
+      else()
+        message(STATUS "This package will be built into the same install prefix as "
+          "its dependencies")
+      endif()
+
+      set(RPATH_LINK "")
+      foreach(dip IN LISTS deps_install_prefixes)
+        list(APPEND RPATH_LINK "${dip}/lib")
+      endforeach()
+      string(REPLACE ";" ":" RPATH_LINK "${RPATH_LINK}")
+      if(RPATH_LINK)
+        cmake_print_variables(RPATH_LINK)
+      endif()
 
       if(fail_this_build_reason)
         set(log_error_result "${fail_this_build_reason}")
@@ -576,6 +600,8 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       endif()
 
       # build
+      set(ENV{LD_LIBRARY_PATH} "${RPATH_LINK}")
+      set(ENV{DYLD_LIBRARY_PATH} "${RPATH_LINK}")
       set(command_args
           --build ${pkg_binary_dir}
           --config ${config}
@@ -585,6 +611,8 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
         COMMAND ${CMAKE_COMMAND} ${command_args}
         RESULT_VARIABLE result
       )
+      set(ENV{LD_LIBRARY_PATH} "")
+      set(ENV{DYLD_LIBRARY_PATH} "")
       if(result)
         log_error("build failed.")
         continue()
