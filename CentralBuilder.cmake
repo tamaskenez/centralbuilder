@@ -601,6 +601,12 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       else()
         message(STATUS "There is no previous build, building now for the first time.")
       endif()
+
+      set(ENV{LD_LIBRARY_PATH} "${RPATH_LINK}")
+      set(ENV{DYLD_LIBRARY_PATH} "${RPATH_LINK}")
+      message(STATUS "\$ENV{LD_LIBRARY_PATH}: $ENV{LD_LIBRARY_PATH}")
+      message(STATUS "\$ENV{DYLD_LIBRARY_PATH}: $ENV{DYLD_LIBRARY_PATH}")
+      
       # configure
       file(MAKE_DIRECTORY "${pkg_binary_dir}")
       log_command(cd "${pkg_binary_dir}")
@@ -625,10 +631,6 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       endif()
 
       # build
-      set(ENV{LD_LIBRARY_PATH} "${RPATH_LINK}")
-      set(ENV{DYLD_LIBRARY_PATH} "${RPATH_LINK}")
-      message(STATUS "\$ENV{LD_LIBRARY_PATH}: $ENV{LD_LIBRARY_PATH}")
-      message(STATUS "\$ENV{DYLD_LIBRARY_PATH}: $ENV{DYLD_LIBRARY_PATH}")
       set(command_args
           --build ${pkg_binary_dir}
           --config ${config}
