@@ -290,8 +290,10 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
   # that does not preserve nested lists
   string(REGEX REPLACE "!_BEGIN_![^;]+;" "" pkg_args "!_BEGIN_!${pkg_request}")
 
-  message(STATUS "Package: ${pkg_name}:")
-  message(STATUS "\t${pkg_args}")
+  message(STATUS "****************************************************************")
+  message(STATUS "* Package: ${pkg_name}:")
+  message(STATUS "* \t${pkg_args}")
+  message(STATUS "****************************************************************")
 
   list(APPEND package_names_processed "${pkg_name}")
   # we'll remove this after successful build or
@@ -426,7 +428,7 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
   message(STATUS "${pkg_name}: git ls-remote ${ref} returned ${pkg_rev_parse_head}")
 
   foreach(config IN LISTS CONFIGS)
-
+    message(STATUS "---------------- CONFIG: ${config} ----------------")
     # The next section in the while() will be executed first without actually
     # having cloned out the repository.
     # If it turns out that the repository is going to be built
