@@ -627,6 +627,8 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       # build
       set(ENV{LD_LIBRARY_PATH} "${RPATH_LINK}")
       set(ENV{DYLD_LIBRARY_PATH} "${RPATH_LINK}")
+      message(STATUS "\$ENV{LD_LIBRARY_PATH}: $ENV{LD_LIBRARY_PATH}")
+      message(STATUS "\$ENV{DYLD_LIBRARY_PATH}: $ENV{DYLD_LIBRARY_PATH}")
       set(command_args
           --build ${pkg_binary_dir}
           --config ${config}
