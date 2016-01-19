@@ -447,6 +447,14 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       set(args_for_stamp "${actual_cmake_args};SHA=${pkg_rev_parse_head}")
       # make canonical arg list
       string(REGEX REPLACE "(^|;)-([CDUGTA]);" "\\1-\\2" args_for_stamp "${args_for_stamp}")
+      if(args_for_stamp MATCHES "(^|;)-DCMAKE_TOOLCHAIN_FILE=([^;]+)")
+        set(ctf "${CMAKE_MATCH_2}")
+        if(EXISTS "${ctf}")
+          file(MD5 "${ctf}" md5)
+          string(REPLACE "-DCMAKE_TOOLCHAIN_FILE=${ctf}"
+            "-DCMAKE_TOOLCHAIN_FILE=${md5}" args_for_stamp "${args_for_stamp}")
+        endif()
+      endif()
       list_sort_unique_keep_nested_lists(args_for_stamp)
       set(stamp_filename "${report_dir}/stamps/${pkg_name}-${config}-installed.txt")
 
@@ -606,7 +614,7 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       set(ENV{DYLD_LIBRARY_PATH} "${RPATH_LINK}")
       message(STATUS "\$ENV{LD_LIBRARY_PATH}: $ENV{LD_LIBRARY_PATH}")
       message(STATUS "\$ENV{DYLD_LIBRARY_PATH}: $ENV{DYLD_LIBRARY_PATH}")
-      
+
       # configure
       file(MAKE_DIRECTORY "${pkg_binary_dir}")
       log_command(cd "${pkg_binary_dir}")
