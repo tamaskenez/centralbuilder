@@ -610,8 +610,10 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
         message(STATUS "There is no previous build, building now for the first time.")
       endif()
 
-      set(ENV{LD_LIBRARY_PATH} "${RPATH_LINK}")
-      set(ENV{DYLD_LIBRARY_PATH} "${RPATH_LINK}")
+      set(ENV_LD_LIBRARY_PATH_SAVED "$ENV{LD_LIBRARY_PATH}")
+      set(ENV_DYLD_LIBRARY_PATH_SAVED "$ENV{DYLD_LIBRARY_PATH}")
+      set(ENV{LD_LIBRARY_PATH} "${RPATH_LINK}:$ENV{LD_LIBRARY_PATH}")
+      set(ENV{DYLD_LIBRARY_PATH} "${RPATH_LINK}:$ENV{DYLD_LIBRARY_PATH}")
       message(STATUS "\$ENV{LD_LIBRARY_PATH}: $ENV{LD_LIBRARY_PATH}")
       message(STATUS "\$ENV{DYLD_LIBRARY_PATH}: $ENV{DYLD_LIBRARY_PATH}")
 
@@ -648,8 +650,8 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
         COMMAND ${CMAKE_COMMAND} ${command_args}
         RESULT_VARIABLE result
       )
-      set(ENV{LD_LIBRARY_PATH} "")
-      set(ENV{DYLD_LIBRARY_PATH} "")
+      set(ENV{LD_LIBRARY_PATH} "${ENV_LD_LIBRARY_PATH_SAVED}")
+      set(ENV{DYLD_LIBRARY_PATH} "${ENV_DYLD_LIBRARY_PATH_SAVED}")
       if(result)
         log_error("build failed.")
         continue()
