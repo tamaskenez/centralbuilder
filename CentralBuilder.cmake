@@ -166,6 +166,7 @@ file(MAKE_DIRECTORY ${tp_binary_dir})
 execute_process(
   COMMAND ${CMAKE_COMMAND}
     ${GLOBAL_CMAKE_ARGS}
+    -UCB_*
     "-DCB_ENV_REPORT_FILE=${report_dir}/env.txt"
     ${tp_source_dir}
   WORKING_DIRECTORY ${tp_binary_dir}
@@ -191,6 +192,7 @@ function(include_cmake_package_registry pkg_registry_file_in out_file_to_append)
   execute_process(
     COMMAND ${CMAKE_COMMAND}
       ${GLOBAL_CMAKE_ARGS}
+      -UCB_*
       "-DCB_ADD_PKG_CMAKE=${CMAKE_CURRENT_LIST_DIR}/detail/AddPkg.cmake"
       "-DCB_PKG_REGISTRY_FILE_IN=${pkg_registry_file_in}"
       "-DCB_OUT_FILE_TO_APPEND=${out_file_to_append}"
@@ -737,6 +739,7 @@ endforeach() # for each pkg
 execute_process(
   COMMAND ${CMAKE_COMMAND}
     ${GLOBAL_CMAKE_ARGS}
+    -UCB_*
     "-DCB_FIND_PACKAGE_REPORT_FILE=${report_dir}/find_package_report.txt"
     "-DPKG_NAMES=${PKG_NAMES}"
     "-DCMAKE_PREFIX_PATH=${pkg_prefix_path}"
