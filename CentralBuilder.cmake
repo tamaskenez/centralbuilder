@@ -413,23 +413,27 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       OUTPUT_VARIABLE ls_remote_output
       OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-    if(NOT result)
+    if(NOT result OR result EQUAL 2)
       break()
     endif()
   endforeach()
 
-  if(result)
+  if(result EQUAL 2 AND PKG_GIT_TAG MATCHES "^[0-9a-fA-F]+$")
+    set(result 0)
+    set(pkg_rev_parse_head 0) # 0 means it's possibly an SHA
+    message(STATUS "${pkg_name}: git ls-remote ${ref} returned no-matching-ref: assuming it's a valid SHA.")
+  elseif(result)
     log_error("'git ls-remote ${PKG_GIT_URL} ${ref}' failed")
     continue()
+  else()
+    string(REGEX MATCH "[0-9a-fA-F]+" pkg_rev_parse_head "${ls_remote_output}")
+    if(NOT pkg_rev_parse_head)
+      log_error("Failed to parse result of 'git ls-remote ${PKG_GIT_URL} ${ref}' which was '${ls_remote_output}'")
+      continue()
+    endif()
+    message(STATUS "${pkg_name}: git ls-remote ${ref} returned ${pkg_rev_parse_head}")
   endif()
 
-  string(REGEX MATCH "[0-9a-fA-F]+" pkg_rev_parse_head "${ls_remote_output}")
-  if(NOT pkg_rev_parse_head)
-    log_error("Failed to parse result of 'git ls-remote ${PKG_GIT_URL} ${ref}' which was '${ls_remote_output}'")
-    continue()
-  endif()
-
-  message(STATUS "${pkg_name}: git ls-remote ${ref} returned ${pkg_rev_parse_head}")
 
   foreach(config IN LISTS CONFIGS)
     message(STATUS "---------------- CONFIG: ${config} ----------------")
@@ -512,20 +516,38 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
       else()
         # clone if there's no git in the clone dir
         if(NOT EXISTS "${pkg_clone_dir}/.git")
-          set(branch_option "")
-          if(PKG_GIT_TAG)
-            set(branch_option --branch ${PKG_GIT_TAG})
+          if(pkg_rev_parse_head STREQUAL "0") # PKG_GIT_TAG is probably an SHA
+            set(git_options "")
+          else()
+            set(git_options --depth 1)
+            if(PKG_GIT_TAG)
+              list(APPEND git_options --branch ${PKG_GIT_TAG})
+            endif()
           endif()
           execute_process(
-            COMMAND ${GIT_EXECUTABLE} clone --depth 1 --recursive ${branch_option}
+            COMMAND ${GIT_EXECUTABLE} clone --recursive ${git_options}
               ${PKG_GIT_URL} ${pkg_clone_dir}
-            RESULT_VARIABLE result
-          )
+            RESULT_VARIABLE result)
           if(result)
             set(log_error_result "git clone failed.")
             break()
           endif()
+
+          if(pkg_rev_parse_head STREQUAL "0") # PKG_GIT_TAG is probably an SHA
+            execute_process(
+              COMMAND ${GIT_EXECUTABLE} checkout ${PKG_GIT_TAG}
+              WORKING_DIRECTORY ${pkg_clone_dir}
+              RESULT_VARIABLE result)
+            if(result)
+              set(log_error_result "git checkout failed after successful clone")
+              # remove cloned dir otherwise in next time we would leave it
+              # as it is (at HEAD commit) and build at that commit
+              file(REMOVE_RECURSE ${pkg_clone_dir})
+              break()
+            endif()
+          endif()
         endif()
+
 
         # determine the actual commit
         execute_process(COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
