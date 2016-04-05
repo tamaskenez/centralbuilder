@@ -231,7 +231,7 @@ foreach(pr IN LISTS PKG_REGISTRIES)
   elseif(pr MATCHES "\\.txt")
     file(STRINGS "${tmpfile}" prc)
     foreach(line IN LISTS prc)
-      file(APPEND "${pkg_requests_file}" "${line}")
+      file(APPEND "${pkg_requests_file}" "${line}\n")
     endforeach()
   else()
     message(FATAL_ERROR "The package registry files must have either '.txt' "
