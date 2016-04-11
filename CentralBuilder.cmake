@@ -471,6 +471,8 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
         if(installed_stamp_content STREQUAL args_for_stamp)
           set(same_args_as_already_installed 1)
         endif()
+      else()
+        set(installed_stamp_content "")
       endif()
 
       set(fail_this_build_reason "")
