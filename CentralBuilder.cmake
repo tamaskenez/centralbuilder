@@ -676,9 +676,9 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
         COMMAND ${CMAKE_COMMAND} ${command_args}
         RESULT_VARIABLE result
       )
-      set(ENV{LD_LIBRARY_PATH} "${ENV_LD_LIBRARY_PATH_SAVED}")
-      set(ENV{DYLD_LIBRARY_PATH} "${ENV_DYLD_LIBRARY_PATH_SAVED}")
       if(result)
+        set(ENV{LD_LIBRARY_PATH} "${ENV_LD_LIBRARY_PATH_SAVED}")
+        set(ENV{DYLD_LIBRARY_PATH} "${ENV_DYLD_LIBRARY_PATH_SAVED}")
         log_error("build failed.")
         continue()
       endif()
@@ -693,6 +693,10 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
         COMMAND ${CMAKE_COMMAND} ${command_args}
         RESULT_VARIABLE result
       )
+
+      set(ENV{LD_LIBRARY_PATH} "${ENV_LD_LIBRARY_PATH_SAVED}")
+      set(ENV{DYLD_LIBRARY_PATH} "${ENV_DYLD_LIBRARY_PATH_SAVED}")
+
       if(result)
         log_error("install failed.")
         continue()
