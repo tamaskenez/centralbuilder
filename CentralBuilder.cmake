@@ -527,6 +527,8 @@ foreach(pkg_request IN LISTS PKG_REQUESTS)
               list(APPEND git_options --branch ${PKG_GIT_TAG})
             endif()
           endif()
+          log_command(git clone --recursive ${git_options}
+              ${PKG_GIT_URL} ${pkg_clone_dir})
           execute_process(
             COMMAND ${GIT_EXECUTABLE} clone --recursive ${git_options}
               ${PKG_GIT_URL} ${pkg_clone_dir}
